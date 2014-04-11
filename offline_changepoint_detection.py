@@ -3,7 +3,7 @@ import numpy as np
 from scipy.special import gammaln
 from scipy.misc import comb
 
-def offline_changepoint_detection(data, prior_func, observation_log_likelihood_function, P=None):
+def offline_changepoint_detection(data, prior_func, observation_log_likelihood_function, P=None, truncate=-np.inf):
     """Compute the likelihood of changepoints on data.
 
     Keyword arguments:
@@ -48,8 +48,8 @@ def offline_changepoint_detection(data, prior_func, observation_log_likelihood_f
             P_next_cp = np.logaddexp(P_next_cp, summand)
             
             # truncate sum to become approx. linear in time (see Fearnhead, 2006, eq. (3))
-            #if summand - P_next_cp < -100:
-                #break
+            if summand - P_next_cp < truncate:
+                break
                 
         if P[t, n-1] == 1:
             P[t, n-1] = observation_log_likelihood_function(data, t, n)
