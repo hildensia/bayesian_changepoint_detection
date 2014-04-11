@@ -1,6 +1,5 @@
 
 
-
 Bayesian Changepoint Detection
 ==============================
 
@@ -15,3 +14,5 @@ Methods to get the probability of a changepoint in a time series. Both online an
                                                                                                            
 [3] Xuan Xiang, Kevin Murphy, Modeling Changing Dependency Structure in                                    
     Multivariate Time Series, ICML (2007), pp. 1055--1062
+    
+To see it in action have a look at the [example notebook](http://nbviewer.ipython.org/urls/raw.githubusercontent.com/hildensia/bayesian_changepoint_detection/master/Example%20Code.ipynb?create=1 "Example Code in an IPython Notebook").
