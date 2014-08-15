@@ -2,6 +2,21 @@ from __future__ import division
 import numpy as np
 from scipy.special import gammaln
 from scipy.misc import comb
+from decorator import decorator
+
+
+def _dynamicProgramming(f, *args, **kwargs):
+    try:
+        f.cache[args[1:3]]
+    except KeyError:
+        f.cache[args[1:3]] = f(*args, **kwargs)
+    return f.cache[args[1:3]]
+
+
+def dynamicProgramming(f):
+    f.cache = {}
+    return decorator(_dynamicProgramming, f)
+
 
 def offline_changepoint_detection(data, prior_func, observation_log_likelihood_function, P=None, truncate=-np.inf):
     """Compute the likelihood of changepoints on data.
@@ -78,6 +93,7 @@ def offline_changepoint_detection(data, prior_func, observation_log_likelihood_f
 
     return Q, P, Pcp
 
+@dynamicProgramming
 def gaussian_obs_log_likelihood(data, t, s):
     n = s - t
     mean = data[t:s].sum(0) / n
