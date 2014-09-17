@@ -1,11 +1,19 @@
 from __future__ import division
 import numpy as np
 from scipy.special import gammaln
-from scipy.misc import comb, logsumexp
+from scipy.misc import comb
 from decorator import decorator
 
+try:
+    from sselogsumexp import logsumexp
+except ImportError:
+    from scipy.misc import logsumexp
+    print("Use scipy logsumexp().")
+else:
+    print("Use SSE accelerated logsumexp().")
 
-def _dynamicProgramming(f, *args, **kwargs):
+
+def _dynamic_programming(f, *args, **kwargs):
     if f.data is None:
         f.data = args[0]
 
@@ -19,11 +27,10 @@ def _dynamicProgramming(f, *args, **kwargs):
         f.cache[args[1:3]] = f(*args, **kwargs)
     return f.cache[args[1:3]]
 
-
-def dynamicProgramming(f):
+def dynamic_programming(f):
     f.cache = {}
     f.data = None
-    return decorator(_dynamicProgramming, f)
+    return decorator(_dynamic_programming, f)
 
 
 def offline_changepoint_detection(data, prior_func,
@@ -88,11 +95,11 @@ def offline_changepoint_detection(data, prior_func,
     for j in range(1, n-1):
         for t in range(j, n-1):
             tmp_cond = Pcp[j-1, j-1:t] + P[j:t+1, t] + Q[t + 1] + g[0:t-j+1] - Q[j:t+1]
-            Pcp[j, t] = logsumexp(tmp_cond)
+            Pcp[j, t] = logsumexp(tmp_cond.astype(np.float32))
 
     return Q, P, Pcp
 
-@dynamicProgramming
+@dynamic_programming
 def gaussian_obs_log_likelihood(data, t, s):
     s += 1
     n = s - t
