@@ -63,7 +63,7 @@ def offline_changepoint_detection(data, prior_func,
 
     P[n-1, n-1] = observation_log_likelihood_function(data, n-1, n)
     Q[n-1] = P[n-1, n-1]
-   
+
     for t in reversed(range(n-1)):
         P_next_cp = -np.inf  # == -log(0)
         for s in range(t, n-1):
@@ -87,15 +87,19 @@ def offline_changepoint_detection(data, prior_func,
             # (1 - G) is approx. -log(G) for G close to 1
             antiG = np.log(-G[n-1-t])
 
-        Q[t] = np.logaddexp(P_next_cp, P[t, n-1] + antiG) 
-        
+        Q[t] = max(-1e50, np.logaddexp(P_next_cp, P[t, n-1] + antiG))
+
     Pcp = np.ones((n-1, n-1)) * -np.inf
     for t in range(n-1):
         Pcp[0, t] = P[0, t] + Q[t + 1] + g[t] - Q[0]
+        if np.isnan(Pcp[0, t]):
+            Pcp[0, t] = -np.inf
     for j in range(1, n-1):
         for t in range(j, n-1):
             tmp_cond = Pcp[j-1, j-1:t] + P[j:t+1, t] + Q[t + 1] + g[0:t-j+1] - Q[j:t+1]
             Pcp[j, t] = logsumexp(tmp_cond.astype(np.float32))
+            if np.isnan(Pcp[j, t]):
+                Pcp[j, t] = -np.inf
 
     return Q, P, Pcp
 
