@@ -87,7 +87,7 @@ def offline_changepoint_detection(data, prior_func,
             # (1 - G) is approx. -log(G) for G close to 1
             antiG = np.log(-G[n-1-t])
 
-        Q[t] = max(-1e50, np.logaddexp(P_next_cp, P[t, n-1] + antiG))
+        Q[t] = np.logaddexp(P_next_cp, P[t, n-1] + antiG)
 
     Pcp = np.ones((n-1, n-1)) * -np.inf
     for t in range(n-1):
