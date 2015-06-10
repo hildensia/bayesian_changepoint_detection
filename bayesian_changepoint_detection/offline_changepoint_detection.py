@@ -155,10 +155,7 @@ def fullcov_obs_log_likelihood(data, t, s):
 
     N0 = dim          # weakest prior we can use to retain proper prior
     V0 = np.var(x)*np.eye(dim)
-    Vn = V0
-    for i in range(x.shape[0]):
-      z = np.atleast_2d(x[i,:])
-      Vn += np.dot(z.T,z) # Vn = V0 + S, S = sum_{i=s}^t(x_i x_i^T), x_i \in \mathbb{R}^{dim}
+    Vn = V0 + np.array([np.outer(x[i], x[i].T) for i in xrange(x.shape[0])]).sum(0)
 
     # section 3.2 from Xuan paper:
     return -(dim*n/2)*np.log(np.pi) + (N0/2)*np.linalg.slogdet(V0)[1] - \
