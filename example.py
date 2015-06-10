@@ -33,11 +33,11 @@ def generate_multinormal_time_series(num, dim, minl=50, maxl=1000):
 
     tdata = np.random.multivariate_normal(mean, var, p)
     data = np.concatenate((data, tdata))
-  return partition, data
+  return partition, data[1:,:]
 
 if __name__ == '__main__':
   show_plot = True
-  dim = 1
+  dim = 4
   #partition, data = generate_normal_time_series(7, 50, 200)
   partition, data = generate_multinormal_time_series(7, dim, 50, 200)
   changes = np.cumsum(partition)
@@ -52,7 +52,9 @@ if __name__ == '__main__':
 
 
   #Q, P, Pcp = offcd.offline_changepoint_detection(data,partial(offcd.const_prior, l=(len(data)+1)),offcd.gaussian_obs_log_likelihood, truncate=-20)
-  Q, P, Pcp = offcd.offline_changepoint_detection(data,partial(offcd.const_prior, l=(len(data)+1)),offcd.ifm_obs_log_likelihood, truncate=-20)
+  #Q, P, Pcp = offcd.offline_changepoint_detection(data,partial(offcd.const_prior, l=(len(data)+1)),offcd.ifm_obs_log_likelihood, truncate=-20)
+  Q, P, Pcp = offcd.offline_changepoint_detection(data,partial(offcd.const_prior, l=(len(data)+1)),offcd.fullcov_obs_log_likelihood, truncate=-20)
+
   if show_plot:
     fig, ax = plt.subplots(figsize=[18, 16])
     ax = fig.add_subplot(2, 1, 1)

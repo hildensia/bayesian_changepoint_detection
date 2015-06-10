@@ -1,6 +1,6 @@
 from __future__ import division
 import numpy as np
-from scipy.special import gammaln
+from scipy.special import gammaln, multigammaln
 from scipy.misc import comb
 from decorator import decorator
 
@@ -141,6 +141,29 @@ def ifm_obs_log_likelihood(data, t, s):
     return d*( -(n/2)*np.log(np.pi) + (N0/2)*np.log(V0) - \
         gammaln(N0/2) + gammaln((N0+n)/2) ) - \
         ( ((N0+n)/2)*np.log(Vn) ).sum(0)
+
+def fullcov_obs_log_likelihood(data, t, s):
+    '''Full Covariance model from xuan et al'''
+    s += 1
+    n = s - t
+    x = data[t:s]
+    if len(x.shape)==2:
+        dim = x.shape[1]
+    else:
+        dim = 1
+        x = np.atleast_2d(x).T
+
+    N0 = dim          # weakest prior we can use to retain proper prior
+    V0 = np.var(x)*np.eye(dim)
+    Vn = V0
+    for i in range(x.shape[0]):
+      z = np.atleast_2d(x[i,:])
+      Vn += np.dot(z.T,z) # Vn = V0 + S, S = sum_{i=s}^t(x_i x_i^T), x_i \in \mathbb{R}^{dim}
+
+    # section 3.2 from Xuan paper:
+    return -(dim*n/2)*np.log(np.pi) + (N0/2)*np.linalg.slogdet(V0)[1] - \
+        multigammaln(N0/2,dim) + multigammaln((N0+n)/2,dim) - \
+        ((N0+n)/2)*np.linalg.slogdet(Vn)[1]
 
 def const_prior(r, l):
     return 1/(l)
