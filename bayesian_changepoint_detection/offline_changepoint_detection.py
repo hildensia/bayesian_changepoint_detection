@@ -39,12 +39,13 @@ def offline_changepoint_detection(data, prior_func,
     """Compute the likelihood of changepoints on data.
 
     Keyword arguments:
-    data -- the time series data
-    prior_func -- a function given the likelihood of a changepoint given the
-                  distance to the last one
+    data                                -- the time series data
+    prior_func                          -- a function given the likelihood of a changepoint given the distance to the last one
     observation_log_likelihood_function -- a function giving the log likelihood
                                            of a data part
-    P -- the likelihoods if pre-computed
+    truncate                            -- the cutoff probability 10^truncate to stop computation for that changepoint log likelihood
+
+    P                                   -- the likelihoods if pre-computed
     """
 
     n = len(data)
@@ -67,7 +68,7 @@ def offline_changepoint_detection(data, prior_func,
     for t in reversed(range(n-1)):
         P_next_cp = -np.inf  # == log(0)
         for s in range(t, n-1):
-            P[t, s] = observation_log_likelihood_function(data, t, s + 1)
+            P[t, s] = observation_log_likelihood_function(data, t, s+1)
 
             # compute recursion
             summand = P[t, s] + Q[s + 1] + g[s + 1 - t]
