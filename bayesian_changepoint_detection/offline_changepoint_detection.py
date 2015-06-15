@@ -1,6 +1,6 @@
 from __future__ import division
 import numpy as np
-from scipy.special import gammaln
+from scipy.special import gammaln, multigammaln
 from scipy.misc import comb
 from decorator import decorator
 
@@ -39,12 +39,13 @@ def offline_changepoint_detection(data, prior_func,
     """Compute the likelihood of changepoints on data.
 
     Keyword arguments:
-    data -- the time series data
-    prior_func -- a function given the likelihood of a changepoint given the
-                  distance to the last one
+    data                                -- the time series data
+    prior_func                          -- a function given the likelihood of a changepoint given the distance to the last one
     observation_log_likelihood_function -- a function giving the log likelihood
                                            of a data part
-    P -- the likelihoods if pre-computed
+    truncate                            -- the cutoff probability 10^truncate to stop computation for that changepoint log likelihood
+
+    P                                   -- the likelihoods if pre-computed
     """
 
     n = len(data)
@@ -65,9 +66,9 @@ def offline_changepoint_detection(data, prior_func,
     Q[n-1] = P[n-1, n-1]
 
     for t in reversed(range(n-1)):
-        P_next_cp = -np.inf  # == -log(0)
+        P_next_cp = -np.inf  # == log(0)
         for s in range(t, n-1):
-            P[t, s] = observation_log_likelihood_function(data, t, s + 1)
+            P[t, s] = observation_log_likelihood_function(data, t, s+1)
 
             # compute recursion
             summand = P[t, s] + Q[s + 1] + g[s + 1 - t]
@@ -82,7 +83,7 @@ def offline_changepoint_detection(data, prior_func,
 
         # (1 - G) is numerical stable until G becomes numerically 1
         if G[n-1-t] < -1e-15:  # exp(-1e-15) = .99999...
-            antiG = np.log(1 - np.exp(G[n-1-t])) 
+            antiG = np.log(1 - np.exp(G[n-1-t]))
         else:
             # (1 - G) is approx. -log(G) for G close to 1
             antiG = np.log(-G[n-1-t])
@@ -108,28 +109,65 @@ def gaussian_obs_log_likelihood(data, t, s):
     s += 1
     n = s - t
     mean = data[t:s].sum(0) / n
-    
+
     muT = (n * mean) / (1 + n)
     nuT = 1 + n
     alphaT = 1 + n / 2
     betaT = 1 + 0.5 * ((data[t:s] - mean) ** 2).sum(0) + ((n)/(1 + n)) * (mean**2 / 2)
     scale = (betaT*(nuT + 1))/(alphaT * nuT)
-    
+
     # splitting the PDF of the student distribution up is /much/ faster.
     # (~ factor 20) using sum over for loop is even more worthwhile
     prob = np.sum(np.log(1 + (data[t:s] - muT)**2/(nuT * scale)))
     lgA = gammaln((nuT + 1) / 2) - np.log(np.sqrt(np.pi * nuT * scale)) - gammaln(nuT/2)
-    
+
     return np.sum(n * lgA - (nuT + 1)/2 * prob)
 
+def ifm_obs_log_likelihood(data, t, s):
+    '''Independent Features model from xuan et al'''
+    s += 1
+    n = s - t
+    x = data[t:s]
+    if len(x.shape)==2:
+        d = x.shape[1]
+    else:
+        d = 1
+        x = np.atleast_2d(x).T
+
+    N0 = d          # weakest prior we can use to retain proper prior
+    V0 = np.var(x)
+    Vn = V0 + (x**2).sum(0)
+
+    # sum over dimension and return (section 3.1 from Xuan paper):
+    return d*( -(n/2)*np.log(np.pi) + (N0/2)*np.log(V0) - \
+        gammaln(N0/2) + gammaln((N0+n)/2) ) - \
+        ( ((N0+n)/2)*np.log(Vn) ).sum(0)
+
+def fullcov_obs_log_likelihood(data, t, s):
+    '''Full Covariance model from xuan et al'''
+    s += 1
+    n = s - t
+    x = data[t:s]
+    if len(x.shape)==2:
+        dim = x.shape[1]
+    else:
+        dim = 1
+        x = np.atleast_2d(x).T
+
+    N0 = dim          # weakest prior we can use to retain proper prior
+    V0 = np.var(x)*np.eye(dim)
+    Vn = V0 + np.array([np.outer(x[i], x[i].T) for i in xrange(x.shape[0])]).sum(0)
+
+    # section 3.2 from Xuan paper:
+    return -(dim*n/2)*np.log(np.pi) + (N0/2)*np.linalg.slogdet(V0)[1] - \
+        multigammaln(N0/2,dim) + multigammaln((N0+n)/2,dim) - \
+        ((N0+n)/2)*np.linalg.slogdet(Vn)[1]
 
 def const_prior(r, l):
     return 1/(l)
 
-
 def geometric_prior(t, p):
     return p * ((1 - p) ** (t - 1))
-
 
 def neg_binominal_prior(t, k, p):
     return comb(t - k, k - 1) * p ** k * (1 - p) ** (t - k)
