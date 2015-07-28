@@ -51,19 +51,17 @@ class StudentT:
         return stats.t.pdf(x=data, 
                            df=2*self.alpha,
                            loc=self.mu,
-                           scale=self.beta * (self.kappa+1) / (self.alpha *
-                               self.kappa))
+                           scale=np.sqrt(self.beta * (self.kappa+1) / (self.alpha *
+                               self.kappa)))
 
     def update_theta(self, data):
         muT0 = np.concatenate((self.mu0, (self.kappa * self.mu + data) / (self.kappa + 1)))
         kappaT0 = np.concatenate((self.kappa0, self.kappa + 1.))
         alphaT0 = np.concatenate((self.alpha0, self.alpha + 0.5))
-        betaT0 = np.concatenate((self.beta0, self.kappa + (self.kappa * (data -
+        betaT0 = np.concatenate((self.beta0, self.beta + (self.kappa * (data -
             self.mu)**2) / (2. * (self.kappa + 1.))))
             
         self.mu = muT0
         self.kappa = kappaT0
         self.alpha = alphaT0
         self.beta = betaT0
-
-
