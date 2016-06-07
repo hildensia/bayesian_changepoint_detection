@@ -36,6 +36,72 @@ def online_changepoint_detection(data, hazard_func, observation_likelihood):
     return R, maxes
 
 
+class OnlineChangepointDetector(object):
+    def __init__(self, data, hazard_func, observation_likelihood):
+        """
+        An online changepoint detector with the ability to add new data on the
+        go.
+
+        :param data: The initial data set.
+        :param hazard_func: The hazard function of this online detector
+        :param observation_likelihood:  The data likelihood of the observations
+        """
+        self.hazard_func = hazard_func
+        self.observation_likelihood = observation_likelihood
+
+        self.data = data
+        self.maxes = np.zeros(len(data) + 1)
+
+        self.R = np.zeros((len(data) + 1, len(data) + 1))
+        self.R[0, 0] = 1
+
+        self.current_pos = 0
+
+    def add_data(self, data):
+        """
+        Add new data points to the time series
+        :param data: The data to add
+        """
+        self.data = np.vstack(self.data, data)
+        self.maxes.resize(np.zeroes(len(self.data) + 1))
+        self.R.resize(len(self.data) + 1, len(self.data) + 1)
+
+    def compute_next_prob(self):
+        """
+        Computes the probability of a changepoint at the next available
+        position. Throws an exception if no further data is available.
+        The result is available in self.R and self.maxes
+        """
+        x = self.data[self.current_pos]
+        t = self.current_pos
+        self.current_pos += 1
+
+        # Evaluate the predictive distribution for the new datum under each of
+        # the parameters.  This is the standard thing from Bayesian inference.
+        predprobs = self.observation_likelihood.pdf(x)
+
+        # Evaluate the hazard function for this interval
+        H = self.hazard_func(np.array(range(t+1)))
+
+        # Evaluate the growth probabilities - shift the probabilities down and to
+        # the right, scaled by the hazard function and the predictive
+        # probabilities.
+        self.R[1:t+2, t+1] = self.R[0:t+1, t] * predprobs * (1-H)
+
+        # Evaluate the probability that there *was* a changepoint and we're
+        # accumulating the mass back down at r = 0.
+        self.R[0, t+1] = np.sum( self.R[0:t+1, t] * predprobs * H)
+
+        # Renormalize the run length probabilities for improved numerical
+        # stability.
+        self.R[:, t+1] = self.R[:, t+1] / np.sum(self.R[:, t+1])
+
+        # Update the parameter sets for each possible run length.
+        self.observation_likelihood.update_theta(x)
+
+        self.maxes[t] = self.R[:, t].argmax()
+
+
 def constant_hazard(lam, r):
     return 1/lam * np.ones(r.shape)
 
