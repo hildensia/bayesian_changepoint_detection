@@ -62,8 +62,8 @@ class OnlineChangepointDetector(object):
         Add new data points to the time series
         :param data: The data to add
         """
-        self.data = np.vstack(self.data, data)
-        self.maxes.resize(np.zeroes(len(self.data) + 1))
+        self.data = np.concatenate(self.data, data)
+        self.maxes.resize(len(self.data) + 1)
         self.R.resize(len(self.data) + 1, len(self.data) + 1)
 
     def compute_next_prob(self):
