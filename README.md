@@ -3,7 +3,7 @@
 Bayesian Changepoint Detection
 ==============================
 
-Methods to get the probability of a changepoint in a time series. Both online and offline methods are availeble. Read the following papers to really understand the methods:
+Methods to get the probability of a changepoint in a time series. Both online and offline methods are available. Read the following papers to really understand the methods:
 
 
 [1] Paul Fearnhead, Exact and Efficient Bayesian Inference for Multiple                                    
