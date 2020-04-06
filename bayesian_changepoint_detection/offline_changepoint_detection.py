@@ -1,7 +1,6 @@
 from __future__ import division
 import numpy as np
-from scipy.special import gammaln, multigammaln
-from scipy.misc import comb
+from scipy.special import gammaln, multigammaln, comb
 from decorator import decorator
 
 # This makes the code compatible with Python 3
@@ -15,7 +14,7 @@ except NameError:
 try:
     from sselogsumexp import logsumexp
 except ImportError:
-    from scipy.misc import logsumexp
+    from scipy.special import logsumexp
     print("Use scipy logsumexp().")
 else:
     print("Use SSE accelerated logsumexp().")
