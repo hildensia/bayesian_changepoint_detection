@@ -75,6 +75,7 @@ class MultivariateT:
         Create a new predictor using the multivariate student T distribution as the posterior.
             This implies a multivariate Gaussian distribution on the data, a Wishart prior on the precision,
              and a Gaussian prior on the mean.
+             Implementation based on Haines, T.S., Gaussian Conjugate Prior Cheat Sheet.
         :param dof: The degrees of freedom on the prior distribution of the precision (inverse covariance)
         :param kappa: TODO
         :param mu: The mean of the prior distribution on the mean
