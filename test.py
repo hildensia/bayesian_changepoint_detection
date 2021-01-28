@@ -10,7 +10,7 @@ def test_multivariate():
     dataset = np.vstack((multivariate_normal.rvs([0]*10, size=50), multivariate_normal.rvs([2]*10, size=50)))
     r, maxes = online.online_changepoint_detection(
         dataset,
-        partial(online.constant_hazard, 20),
+        partial(online.constant_hazard, 250),
         online.MultivariateT(10)
     )
     print(r)

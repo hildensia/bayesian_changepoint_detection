@@ -3,6 +3,7 @@ from __future__ import division
 import numpy as np
 from numpy.linalg import inv
 from scipy import stats
+from itertools import islice
 
 
 def online_changepoint_detection(data, hazard_func, observation_likelihood):
@@ -105,10 +106,8 @@ class MultivariateT:
         # extended it to a length of chunksize
         self.dof = [dof]
         self.kappa = [kappa]
-
-        # The last axis is the time axis, so we need to add that dimension
-        self.mu = np.expand_dims(np.array(mu), 1)
-        self.scale = np.expand_dims(np.array(scale), 2)
+        self.mu = [mu]
+        self.scale = [scale]
 
         self.expand()
 
@@ -118,26 +117,35 @@ class MultivariateT:
         """
         self.dof = np.concatenate((self.dof, np.empty(self.chunksize)))
         self.kappa = np.concatenate((self.kappa, np.empty(self.chunksize)))
-        self.mu = np.hstack((self.mu, np.empty((self.dims, self.chunksize))))
-        self.scale = np.dstack((self.scale, np.empty((self.dims, self.dims, self.chunksize))))
+        self.mu = np.vstack((self.mu, np.empty((self.chunksize, self.dims))))
+        self.scale = np.vstack((self.scale, np.empty((self.chunksize, self.dims, self.dims))))
 
     def pdf(self, data):
         """
         Returns the probability of the observed data under the current parameters
         """
+        self.n += 1
         t_dof = self.dof - self.dims + 1
+        expanded = np.expand_dims((self.kappa * t_dof) / (self.kappa + 1), (1, 2))
+        ret = np.empty(self.n)
         try:
-            return stats.multivariate_t.pdf(
-                x=data,
-                df=t_dof,
-                loc=self.mu,
-                shape=inv(((self.kappa * t_dof) / (self.kappa + 1) * self.scale))
-            )
+            # This can't be vectorised due to https://github.com/scipy/scipy/issues/13450
+            for i, (df, loc, shape) in islice(enumerate(zip(
+                t_dof,
+                self.mu,
+                inv(expanded * self.scale)
+            )), self.n):
+                ret[i] = stats.multivariate_t.pdf(
+                    x=data,
+                    df=df,
+                    loc=loc,
+                    shape=shape
+                )
         except AttributeError:
             raise Exception('You need scipy 1.6.0 or greater to use the multivariate t distribution')
+        return ret
 
     def update_theta(self, data):
-        self.n += 1
 
         if self.n >= self.kappa.shape[0]:
             self.expand()
