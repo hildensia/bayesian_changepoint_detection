@@ -9,7 +9,7 @@ setup(
     version=bayesian_changepoint_detection.__version__,
     description='Some Bayesian changepoint detection algorithms',
     author='Johannes Kulick',
-    author_email='johannes.kulick@ipvs.uni-stuttgart.de',
+    author_email='mail@johanneskulick.net',
     url='http://github.com/hildensia/bayesian_changepoint_detection',
     packages=['bayesian_changepoint_detection'],
     install_requires=['scipy', 'numpy']
