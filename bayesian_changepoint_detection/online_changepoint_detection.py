@@ -1,40 +1,40 @@
 from __future__ import division
 
 import numpy as np
-from scipy import stats
 from numpy.linalg import inv
+from scipy import stats
 
 
 def online_changepoint_detection(data, hazard_func, observation_likelihood):
     maxes = np.zeros(len(data) + 1)
-    
+
     R = np.zeros((len(data) + 1, len(data) + 1))
     R[0, 0] = 1
-    
+
     for t, x in enumerate(data):
         # Evaluate the predictive distribution for the new datum under each of
         # the parameters.  This is the standard thing from Bayesian inference.
         predprobs = observation_likelihood.pdf(x)
-        
+
         # Evaluate the hazard function for this interval
         H = hazard_func(np.array(range(t+1)))
-       
+
         # Evaluate the growth probabilities - shift the probabilities down and to
         # the right, scaled by the hazard function and the predictive
         # probabilities.
         R[1:t+2, t+1] = R[0:t+1, t] * predprobs * (1-H)
-        
+
         # Evaluate the probability that there *was* a changepoint and we're
         # accumulating the mass back down at r = 0.
         R[0, t+1] = np.sum( R[0:t+1, t] * predprobs * H)
-        
+
         # Renormalize the run length probabilities for improved numerical
         # stability.
         R[:, t+1] = R[:, t+1] / np.sum(R[:, t+1])
-        
+
         # Update the parameter sets for each possible run length.
         observation_likelihood.update_theta(x)
-    
+
         maxes[t] = R[:, t].argmax()
     return R, maxes
 
@@ -51,7 +51,7 @@ class StudentT:
         self.mu0 = self.mu = np.array([mu])
 
     def pdf(self, data):
-        return stats.t.pdf(x=data, 
+        return stats.t.pdf(x=data,
                            df=2*self.alpha,
                            loc=self.mu,
                            scale=np.sqrt(self.beta * (self.kappa+1) / (self.alpha *
@@ -63,7 +63,7 @@ class StudentT:
         alphaT0 = np.concatenate((self.alpha0, self.alpha + 0.5))
         betaT0 = np.concatenate((self.beta0, self.beta + (self.kappa * (data -
             self.mu)**2) / (2. * (self.kappa + 1.))))
-            
+
         self.mu = muT0
         self.kappa = kappaT0
         self.alpha = alphaT0
@@ -105,8 +105,10 @@ class MultivariateT:
         # extended it to a length of chunksize
         self.dof = [dof]
         self.kappa = [kappa]
-        self.mu = [mu]
-        self.scale = [scale]
+
+        # The last axis is the time axis, so we need to add that dimension
+        self.mu = np.expand_dims(np.array(mu), 1)
+        self.scale = np.expand_dims(np.array(scale), 2)
 
         self.expand()
 
@@ -114,22 +116,22 @@ class MultivariateT:
         """
         Increases the length of each array by the chunksize
         """
-        self.dof = np.hstack((self.dof, np.empty(self.chunksize)))
-        self.kappa = np.vstack((self.kappa, np.empty(self.chunksize)))
-        self.mu = np.vstack((self.mu, np.empty((self.chunksize, self.dims))))
-        self.scale = np.vstack((self.scale, np.empty((self.chunksize, self.dims, self.dims))))
+        self.dof = np.concatenate((self.dof, np.empty(self.chunksize)))
+        self.kappa = np.concatenate((self.kappa, np.empty(self.chunksize)))
+        self.mu = np.hstack((self.mu, np.empty((self.dims, self.chunksize))))
+        self.scale = np.dstack((self.scale, np.empty((self.dims, self.dims, self.chunksize))))
 
     def pdf(self, data):
         """
         Returns the probability of the observed data under the current parameters
         """
-        t_dof = self.dof[self.n] - self.dims + 1
+        t_dof = self.dof - self.dims + 1
         try:
             return stats.multivariate_t.pdf(
                 x=data,
                 df=t_dof,
-                loc=self.mu[self.n],
-                shape=inv((self.kappa[self.n] * t_dof) / (self.kappa[self.n] + 1) * self.scale[self.n])
+                loc=self.mu,
+                shape=inv(((self.kappa * t_dof) / (self.kappa + 1) * self.scale))
             )
         except AttributeError:
             raise Exception('You need scipy 1.6.0 or greater to use the multivariate t distribution')
