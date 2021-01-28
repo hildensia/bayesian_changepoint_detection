@@ -73,7 +73,7 @@ class StudentT:
 class MultivariateT:
     def __init__(self, dims, dof=None, kappa=1, mu=None, scale=None, chunksize=1):
         """
-        Create a new predictor using the multivariate student T distribution as the posterior.
+        Create a new predictor using the multivariate student T distribution as the posterior predictive.
             This implies a multivariate Gaussian distribution on the data, a Wishart prior on the precision,
              and a Gaussian prior on the mean.
              Implementation based on Haines, T.S., Gaussian Conjugate Prior Cheat Sheet.
