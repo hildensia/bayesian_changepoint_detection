@@ -78,7 +78,7 @@ class MultivariateT:
              and a Gaussian prior on the mean.
              Implementation based on Haines, T.S., Gaussian Conjugate Prior Cheat Sheet.
         :param dof: The degrees of freedom on the prior distribution of the precision (inverse covariance)
-        :param kappa: TODO
+        :param kappa: The number of observations we've already seen
         :param mu: The mean of the prior distribution on the mean
         :param scale: The mean of the prior distribution on the precision
         :param dims: The number of variables
@@ -88,19 +88,21 @@ class MultivariateT:
         """
         self.chunksize = chunksize
 
+        # We default to the minimum possible degrees of freedom, which is 1 greater than the dimensionality
         if dof is None:
             dof = dims + 1
+        # The default mean is all 0s
         if mu is None:
             mu = [0]*dims
+        # The default covariance is the identity matrix. The scale is the inverse of that, which is also the identity
         if scale is None:
             scale = np.identity(dims)
 
         # The number of data points we have seen
         self.n = 0
-        self.dims = dims
 
-        # Minor optimisation - rather than re-calculate this each update, we cache it
-        self.inv_scale0 = inv(scale)
+        # The dimensionality of the dataset (number of variables)
+        self.dims = dims
 
         # A hack to neaten the code: we store the original parameters here in a list, then immediately expand the array,
         # extended it to a length of chunksize
@@ -122,7 +124,8 @@ class MultivariateT:
 
     def pdf(self, data):
         """
-        Returns the probability of the observed data under the current parameters
+        Returns the probability of the observed data under the current and historical parameters
+        :param data: A 1 x D vector of new data
         """
         self.n += 1
         t_dof = self.dof - self.dims + 1
@@ -146,12 +149,15 @@ class MultivariateT:
         return ret
 
     def update_theta(self, data):
-
+        """
+        Performs a bayesian update on the prior parameters, given data
+        :param data: A 1 x D vector of new data
+        """
         if self.n >= self.kappa.shape[0]:
             self.expand()
-        centered = (data - self.mu[0])
+        centered = (data - self.mu[self.n - 1])
 
-        self.dof[self.n] = self.dof[self.n-1] + 1
+        self.dof[self.n] = self.dof[self.n - 1] + 1
         self.kappa[self.n] = self.kappa[self.n-1] + 1
-        self.mu[self.n] = (self.kappa[0] * self.mu[0] + data) / (self.kappa[0] + 1)
-        self.scale[self.n] = inv(self.inv_scale0 + (self.kappa[0] / (self.kappa[0] + 1)) * centered @ centered)
+        self.mu[self.n] = (self.kappa[self.n - 1] * self.mu[self.n - 1] + data) / (self.kappa[self.n - 1] + 1)
+        self.scale[self.n] = inv(inv(self.scale[self.n - 1]) + (self.kappa[self.n-1] / (self.kappa[self.n - 1] + 1)) * np.outer(centered, centered))
