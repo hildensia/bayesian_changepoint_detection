@@ -15,6 +15,7 @@ setup(
     install_requires=['scipy', 'numpy', 'decorator'],
     extras_require={
         'dev': ['pytest'],
-        'multivariate': ['scipy>=1.6.0']
+        'multivariate': ['scipy>=1.6.0'],
+        'plot': ['matplotlib'],
     }
 )

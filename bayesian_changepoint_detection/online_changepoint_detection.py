@@ -71,7 +71,7 @@ class StudentT:
         self.beta = betaT0
 
 class MultivariateT:
-    def __init__(self, dims, dof=None, kappa=1, mu=None, scale=None, chunksize=1):
+    def __init__(self, dims, dof=None, kappa=1, mu=None, scale=None):
         """
         Create a new predictor using the multivariate student T distribution as the posterior predictive.
             This implies a multivariate Gaussian distribution on the data, a Wishart prior on the precision,
@@ -82,12 +82,7 @@ class MultivariateT:
         :param mu: The mean of the prior distribution on the mean
         :param scale: The mean of the prior distribution on the precision
         :param dims: The number of variables
-        :param chunksize: The length of array to pre-allocate.
-            This should be a best guess as to how long your data will be.
-            If you aren't sure or want to save RAM at the expense of speed, leave this as 1
         """
-        self.chunksize = chunksize
-
         # We default to the minimum possible degrees of freedom, which is 1 greater than the dimensionality
         if dof is None:
             dof = dims + 1
@@ -98,46 +93,34 @@ class MultivariateT:
         if scale is None:
             scale = np.identity(dims)
 
-        # The number of data points we have seen
-        self.n = 0
+        # Track time
+        self.t = 0
 
         # The dimensionality of the dataset (number of variables)
         self.dims = dims
 
-        # A hack to neaten the code: we store the original parameters here in a list, then immediately expand the array,
-        # extended it to a length of chunksize
-        self.dof = [dof]
-        self.kappa = [kappa]
-        self.mu = [mu]
-        self.scale = [scale]
-
-        self.expand()
-
-    def expand(self):
-        """
-        Increases the length of each array by the chunksize
-        """
-        self.dof = np.concatenate((self.dof, np.empty(self.chunksize)))
-        self.kappa = np.concatenate((self.kappa, np.empty(self.chunksize)))
-        self.mu = np.vstack((self.mu, np.empty((self.chunksize, self.dims))))
-        self.scale = np.vstack((self.scale, np.empty((self.chunksize, self.dims, self.dims))))
+        # Each parameter is a vector of size 1 x t, where t is time. Therefore each vector grows with each update.
+        self.dof = np.array([dof])
+        self.kappa = np.array([kappa])
+        self.mu = np.array([mu])
+        self.scale = np.array([scale])
 
     def pdf(self, data):
         """
         Returns the probability of the observed data under the current and historical parameters
         :param data: A 1 x D vector of new data
         """
-        self.n += 1
+        self.t += 1
         t_dof = self.dof - self.dims + 1
         expanded = np.expand_dims((self.kappa * t_dof) / (self.kappa + 1), (1, 2))
-        ret = np.empty(self.n)
+        ret = np.empty(self.t)
         try:
             # This can't be vectorised due to https://github.com/scipy/scipy/issues/13450
             for i, (df, loc, shape) in islice(enumerate(zip(
                 t_dof,
                 self.mu,
                 inv(expanded * self.scale)
-            )), self.n):
+            )), self.t):
                 ret[i] = stats.multivariate_t.pdf(
                     x=data,
                     df=df,
@@ -153,11 +136,36 @@ class MultivariateT:
         Performs a bayesian update on the prior parameters, given data
         :param data: A 1 x D vector of new data
         """
-        if self.n >= self.kappa.shape[0]:
-            self.expand()
-        centered = (data - self.mu[self.n - 1])
+        centered = data - self.mu
 
-        self.dof[self.n] = self.dof[self.n - 1] + 1
-        self.kappa[self.n] = self.kappa[self.n-1] + 1
-        self.mu[self.n] = (self.kappa[self.n - 1] * self.mu[self.n - 1] + data) / (self.kappa[self.n - 1] + 1)
-        self.scale[self.n] = inv(inv(self.scale[self.n - 1]) + (self.kappa[self.n-1] / (self.kappa[self.n - 1] + 1)) * np.outer(centered, centered))
+        # We simultaneously update each parameter in the vector, because following figure 1c of the BOCD paper, each
+        # parameter for a given t, r is derived from the same parameter for t-1, r-1
+        # Then, we add the prior back in as the first element
+        self.scale = np.concatenate([
+            self.scale[:1],
+            inv(
+                inv(self.scale)
+                + np.expand_dims(self.kappa / (self.kappa + 1), (1, 2)) * (np.expand_dims(centered, 2) @ np.expand_dims(centered, 1))
+            )
+        ])
+        self.mu = np.concatenate([self.mu[:1], (np.expand_dims(self.kappa, 1) * self.mu + data)/np.expand_dims(self.kappa + 1, 1)])
+        self.dof = np.concatenate([self.dof[:1], self.dof + 1])
+        self.kappa = np.concatenate([self.kappa[:1], self.kappa + 1])
+
+# Plots the run length distributions along with a dataset
+def plot(R, data):
+    import matplotlib.cm as cm
+    import matplotlib.pyplot as plt
+    fig, ax = plt.subplots(figsize=[18, 16])
+    ax = fig.add_subplot(2, 1, 1)
+    ax.plot(data)
+    ax = fig.add_subplot(2, 1, 2, sharex=ax)
+    sparsity = 1  # only plot every fifth data for faster display
+    ax.pcolor(
+        np.array(range(0, len(R[:, 0]), sparsity)),
+        np.array(range(0, len(R[:, 0]), sparsity)),
+        np.log(R),
+        cmap=cm.Greys, vmin=-30, vmax=0
+    )
+    return fig
+
