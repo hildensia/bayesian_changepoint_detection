@@ -11,6 +11,7 @@ def online_changepoint_detection(data, hazard_func, observation_likelihood):
 
     R = np.zeros((len(data) + 1, len(data) + 1))
     R[0, 0] = 1
+    lam = 1
 
     for t, x in enumerate(data):
         # Evaluate the predictive distribution for the new datum under each of
@@ -18,7 +19,7 @@ def online_changepoint_detection(data, hazard_func, observation_likelihood):
         predprobs = observation_likelihood.pdf(x)
 
         # Evaluate the hazard function for this interval
-        H = hazard_func(np.array(range(t+1)))
+        H = hazard_func(lam, np.array(range(t+1)))
 
         # Evaluate the growth probabilities - shift the probabilities down and to
         # the right, scaled by the hazard function and the predictive
