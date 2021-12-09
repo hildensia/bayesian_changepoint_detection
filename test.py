@@ -3,7 +3,9 @@ from functools import partial
 import numpy as np
 from scipy.stats import multivariate_normal, norm
 
-import bayesian_changepoint_detection.online_changepoint_detection as online
+from bayesian_changepoint_detection.bayesian_models import online_changepoint_detection
+from bayesian_changepoint_detection.hazard_functions import constant_hazard
+from bayesian_changepoint_detection.online_likelihoods import StudentT
 
 def test_multivariate():
     np.random.seed(seed=34)
@@ -29,9 +31,9 @@ def test_univariate():
     np.random.seed(seed=34)
     # 10-dimensional univariate normal
     dataset = np.hstack((norm.rvs(0, size=50), norm.rvs(2, size=50)))
-    r, maxes = online.online_changepoint_detection(
+    r, maxes = online_changepoint_detection(
         dataset,
-        partial(online.constant_hazard, 20),
-        online.StudentT(0.1, .01, 1, 0)
+        partial(constant_hazard, 20),
+        StudentT(0.1, .01, 1, 0)
     )
     assert maxes[50] - maxes[51] > 40
