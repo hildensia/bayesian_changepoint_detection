@@ -5,7 +5,7 @@ from setuptools import setup
 import bayesian_changepoint_detection
 
 setup(
-    name='bayesian_changepoint_detection',
+    name='bayescd',
     version=bayesian_changepoint_detection.__version__,
     description='Some Bayesian changepoint detection algorithms',
     author='Johannes Kulick',
