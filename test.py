@@ -5,7 +5,8 @@ from scipy.stats import multivariate_normal, norm
 
 from bayesian_changepoint_detection.bayesian_models import online_changepoint_detection
 from bayesian_changepoint_detection.hazard_functions import constant_hazard
-from bayesian_changepoint_detection.online_likelihoods import StudentT
+from bayesian_changepoint_detection.online_likelihoods import StudentT, MultivariateT
+
 
 def test_multivariate():
     np.random.seed(seed=34)
@@ -16,10 +17,10 @@ def test_multivariate():
         multivariate_normal.rvs([0] * 10, size=50),
         multivariate_normal.rvs([-4] * 10, size=50)
     ))
-    r, maxes = online.online_changepoint_detection(
+    r, maxes = online_changepoint_detection(
         dataset,
-        partial(online.constant_hazard, 50),
-        online.MultivariateT(dims=10)
+        partial(constant_hazard, 50),
+        MultivariateT(dims=10)
     )
 
     # Assert that we detected the mean shifts
