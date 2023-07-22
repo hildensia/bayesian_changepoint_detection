@@ -1,6 +1,7 @@
 from abc import ABC, abstractmethod
 
 import numpy as np
+from numpy.linalg import inv
 import scipy.stats as ss
 
 
