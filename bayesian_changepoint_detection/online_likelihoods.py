@@ -2,6 +2,8 @@ from abc import ABC, abstractmethod
 
 import numpy as np
 import scipy.stats as ss
+from itertools import islice
+from numpy.linalg import inv
 
 
 class BaseLikelihood(ABC):
@@ -92,7 +94,7 @@ class MultivariateT(BaseLikelihood):
             for i, (df, loc, shape) in islice(
                 enumerate(zip(t_dof, self.mu, inv(expanded * self.scale))), self.t
             ):
-                ret[i] = stats.multivariate_t.pdf(x=data, df=df, loc=loc, shape=shape)
+                ret[i] = ss.multivariate_t.pdf(x=data, df=df, loc=loc, shape=shape)
         except AttributeError:
             raise Exception(
                 "You need scipy 1.6.0 or greater to use the multivariate t distribution"
