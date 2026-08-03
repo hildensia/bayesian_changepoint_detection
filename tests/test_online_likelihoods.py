@@ -134,8 +134,10 @@ class TestMultivariateT:
         
         assert likelihood.dof0 == 10
         assert likelihood.kappa0 == 2.0
-        assert torch.allclose(likelihood.mu0, custom_mu)
-        assert torch.allclose(likelihood.scale0, custom_scale)
+        # the model moves its parameters to its own device (e.g. MPS/CUDA),
+        # so compare on the device the model chose
+        assert torch.allclose(likelihood.mu0.cpu(), custom_mu)
+        assert torch.allclose(likelihood.scale0.cpu(), custom_scale)
     
     def test_pdf_single_observation(self):
         """Test PDF computation for single observation."""

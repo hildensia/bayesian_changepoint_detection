@@ -57,11 +57,16 @@ def constant_hazard(
     """
     if lam <= 0:
         raise ValueError("Lambda must be positive")
-    
-    device = get_device(device)
-    
+
     if isinstance(r, int):
-        return torch.full((r,), 1.0 / lam, device=device, dtype=torch.float32)
-    else:
-        r_tensor = ensure_tensor(r, device=device)
-        return torch.full_like(r_tensor, 1.0 / lam, dtype=torch.float32)
+        return torch.full(
+            (r,), 1.0 / lam, device=get_device(device), dtype=torch.float32
+        )
+
+    # Follow the run-length tensor's device unless one is requested explicitly,
+    # so the hazard never drags tensors onto a different (auto-selected) device.
+    if not isinstance(r, torch.Tensor):
+        r = ensure_tensor(r, device=get_device(device))
+    elif device is not None:
+        r = r.to(get_device(device))
+    return torch.full_like(r, 1.0 / lam, dtype=torch.float32)

@@ -5,6 +5,8 @@ This module implements both online and offline Bayesian changepoint detection
 algorithms using PyTorch for efficient computation and GPU acceleration.
 """
 
+import warnings
+
 import torch
 from typing import Union, Callable, Tuple, Optional
 from .device import ensure_tensor, get_device
@@ -77,84 +79,95 @@ def offline_changepoint_detection(
     changepoint problems. Statistics and Computing, 16(2), 203-213.
     """
     device = get_device(device)
+    if device.type == "mps":
+        # The offline recursion needs float64, which MPS does not support.
+        warnings.warn(
+            "MPS does not support float64; running offline changepoint "
+            "detection on CPU instead."
+        )
+        device = torch.device("cpu")
     data = ensure_tensor(data, device=device)
-    
-    if data.dim() == 1:
-        n = data.shape[0]
-    else:
-        n = data.shape[0]  # First dimension is time
-    
+    dtype = torch.float64
+
+    n = data.shape[0]  # First dimension is time
+
+    # Precompute per-dataset sufficient statistics (cumulative sums) so that
+    # every pdf_rows call below is a single vectorized pass.
+    if hasattr(likelihood_model, "device"):
+        likelihood_model.device = device
+    setup = getattr(likelihood_model, "setup", None)
+    if setup is not None:
+        data = setup(data)
+
     # Initialize arrays
-    Q = torch.zeros(n, device=device, dtype=torch.float32)
-    g = torch.zeros(n, device=device, dtype=torch.float32)
-    G = torch.zeros(n, device=device, dtype=torch.float32)
-    P = torch.full((n, n), float('-inf'), device=device, dtype=torch.float32)
-    
+    Q = torch.zeros(n, device=device, dtype=dtype)
+    g = torch.zeros(n, device=device, dtype=dtype)
+    P = torch.full((n, n), float('-inf'), device=device, dtype=dtype)
+
     # Compute prior probabilities in log space
     for t in range(n):
         g[t] = prior_function(t)
-        if t == 0:
-            G[t] = g[t]
-        else:
-            G[t] = torch.logaddexp(G[t - 1], g[t])
-    
+    G = torch.logcumsumexp(g, dim=0)
+
     # Initialize the last time point
     P[n - 1, n - 1] = likelihood_model.pdf(data, n - 1, n)
     Q[n - 1] = P[n - 1, n - 1]
-    
-    # Dynamic programming: work backwards through time
+
+    # Dynamic programming: work backwards through time. For each start point
+    # t, likelihoods of all segments [t, s] are computed in one vectorized
+    # call; the truncated logaddexp recursion (Fearnhead 2006, eq. 3) is
+    # evaluated with a running logcumsumexp instead of a Python loop.
     for t in reversed(range(n - 1)):
-        P_next_cp = torch.tensor(float('-inf'), device=device)  # log(0)
-        
-        for s in range(t, n - 1):
-            # Compute likelihood for segment [t, s+1]
-            P[t, s] = likelihood_model.pdf(data, t, s + 1)
-            
-            # Compute recursion for changepoint probability
-            summand = P[t, s] + Q[s + 1] + g[s + 1 - t]
-            P_next_cp = torch.logaddexp(P_next_cp, summand)
-            
-            # Truncate sum for computational efficiency (Fearnhead 2006, eq. 3)
-            if summand - P_next_cp < truncate:
-                break
-        
-        # Compute likelihood for segment from t to end
-        P[t, n - 1] = likelihood_model.pdf(data, t, n)
-        
+        # row[j] = log p(data[t:t+1+j]) for j = 0 .. n-1-t
+        row = likelihood_model.pdf_rows(data, t).to(device=device, dtype=dtype)
+        P[t, t:] = row
+
+        # summand[j] = P[t, t+j] + Q[t+j+1] + g[j+1] for j = 0 .. n-2-t
+        summand = row[:n - 1 - t] + Q[t + 1:] + g[1:n - t]
+        running = torch.logcumsumexp(summand, dim=0)
+
+        # Truncate the sum where later terms cannot contribute anymore
+        # (identical to breaking out of the sequential loop).
+        truncated = (summand - running) < truncate
+        if bool(truncated.any()):
+            cutoff = int(torch.nonzero(truncated)[0])
+        else:
+            cutoff = summand.shape[0] - 1
+        P_next_cp = running[cutoff]
+
         # Compute (1 - G) in numerically stable way
         if G[n - 1 - t] < -1e-15:  # exp(-1e-15) ≈ 0.99999...
             antiG = torch.log(1 - torch.exp(G[n - 1 - t]))
         else:
             # For G close to 1, use approximation (1 - G) ≈ -log(G)
             antiG = torch.log(-G[n - 1 - t])
-        
+
         # Combine changepoint and no-changepoint probabilities
         Q[t] = torch.logaddexp(P_next_cp, P[t, n - 1] + antiG)
-    
+
     # Compute changepoint probability matrix
-    Pcp = torch.full((n - 1, n - 1), float('-inf'), device=device, dtype=torch.float32)
-    
+    Pcp = torch.full((n - 1, n - 1), float('-inf'), device=device, dtype=dtype)
+
     # First changepoint probabilities
-    for t in range(n - 1):
-        Pcp[0, t] = P[0, t] + Q[t + 1] + g[t] - Q[0]
-        if torch.isnan(Pcp[0, t]):
-            Pcp[0, t] = float('-inf')
-    
-    # Subsequent changepoint probabilities
+    if n > 1:
+        Pcp[0, :] = torch.nan_to_num(
+            P[0, :n - 1] + Q[1:] + g[:n - 1] - Q[0], nan=float('-inf')
+        )
+
+    # Subsequent changepoint probabilities. For each j the inner loop over t
+    # is one masked logsumexp over a [m, m] matrix M with
+    # M[i, t-j] = Pcp[j-1, j-1+i] + g[i] - Q[j+i] + P[j+i, t] + Q[t+1],
+    # restricted to i <= t - j.
     for j in range(1, n - 1):
-        for t in range(j, n - 1):
-            # Compute conditional probability for j-th changepoint at time t
-            tmp_cond = (
-                Pcp[j - 1, j - 1:t] +
-                P[j:t + 1, t] +
-                Q[t + 1] +
-                g[0:t - j + 1] -
-                Q[j:t + 1]
-            )
-            Pcp[j, t] = torch.logsumexp(tmp_cond, dim=0)
-            if torch.isnan(Pcp[j, t]):
-                Pcp[j, t] = float('-inf')
-    
+        m = n - 1 - j
+        head = Pcp[j - 1, j - 1:n - 2] + g[:m] - Q[j:n - 1]  # [m]
+        M = head.unsqueeze(1) + P[j:n - 1, j:n - 1] + Q[j + 1:].unsqueeze(0)
+        mask = torch.ones(m, m, dtype=torch.bool, device=device).triu()
+        M = M.masked_fill(~mask, float('-inf'))
+        Pcp[j, j:] = torch.nan_to_num(
+            torch.logsumexp(M, dim=0), nan=float('-inf')
+        )
+
     return Q, P, Pcp
 
 
@@ -218,7 +231,14 @@ def online_changepoint_detection(
     Adams, R. P., & MacKay, D. J. (2007). Bayesian online changepoint detection.
     arXiv preprint arXiv:0710.3742.
     """
+    # Keep the likelihood model's device authoritative when none is given, and
+    # move everything (model state, data, run-length matrix) to one device so
+    # mixed CPU/GPU inputs cannot collide mid-recursion.
+    if device is None and hasattr(likelihood_model, "device"):
+        device = likelihood_model.device
     device = get_device(device)
+    if hasattr(likelihood_model, "to"):
+        likelihood_model.to(device)
     data = ensure_tensor(data, device=device)
     
     if data.dim() == 1:

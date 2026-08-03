@@ -3,46 +3,103 @@ Offline likelihood functions for Bayesian changepoint detection.
 
 This module provides likelihood functions for offline (batch) changepoint detection
 using PyTorch for efficient computation and GPU acceleration.
+
+All likelihoods expose two evaluation entry points:
+
+- ``pdf(data, t, s)``: log marginal likelihood of the segment ``data[t:s]``
+  (``s`` exclusive). Kept for backward compatibility.
+- ``pdf_rows(data, t)``: log marginal likelihoods of ``data[t:s]`` for every
+  ``s`` in ``t+1 .. n`` in a single vectorized pass. The dynamic programming
+  driver uses this method; it is the reason offline detection runs in seconds
+  instead of minutes (see GitHub issue #47).
+
+Sufficient statistics (cumulative sums of ``x`` and ``x**2``, and cumulative
+outer products where needed) are computed once per dataset by ``setup()`` and
+reused for every segment query.
 """
 
-import torch
-import torch.distributions as dist
+import math
 from abc import ABC, abstractmethod
-from typing import Union, Optional, Dict, Tuple
+from typing import Optional, Union
+
+import torch
+
 from .device import ensure_tensor, get_device
+
+_LOG_PI = math.log(math.pi)
+_LOG_2PI = math.log(2.0 * math.pi)
+
+
+def _multigammaln(a: torch.Tensor, p: int) -> torch.Tensor:
+    """Log of the multivariate gamma function, vectorized over ``a``."""
+    j = torch.arange(p, device=a.device, dtype=a.dtype)
+    return (p * (p - 1) / 4.0) * _LOG_PI + torch.lgamma(a.unsqueeze(-1) - j / 2.0).sum(-1)
 
 
 class BaseLikelihood(ABC):
     """
     Abstract base class for offline likelihood functions.
-    
-    This class provides a template for implementing likelihood functions
-    for offline Bayesian changepoint detection. Subclasses must implement
-    the pdf method.
-    
+
+    Subclasses must implement ``pdf`` and should override ``_compute_stats``
+    and ``pdf_rows`` for vectorized evaluation. The default ``pdf_rows`` falls
+    back to calling ``pdf`` once per segment, so existing subclasses keep
+    working unchanged.
+
     Parameters
     ----------
     device : str, torch.device, or None, optional
         Device to place tensors on (CPU or GPU).
     cache_enabled : bool, optional
-        Whether to enable caching for dynamic programming (default: True).
+        Retained for backward compatibility. Sufficient statistics are now
+        precomputed once per dataset by ``setup()``; there is no per-call
+        cache to enable or disable.
     """
-    
+
     def __init__(
-        self, 
+        self,
         device: Optional[Union[str, torch.device]] = None,
         cache_enabled: bool = True
     ):
         self.device = get_device(device)
         self.cache_enabled = cache_enabled
-        self._cache: Dict[Tuple[int, int], float] = {}
-        self._cached_data = None
-    
+        self._stats_key = None
+
+    def setup(self, data: torch.Tensor) -> torch.Tensor:
+        """
+        Prepare per-dataset sufficient statistics.
+
+        Idempotent and cheap when called repeatedly with the same tensor:
+        statistics are recomputed only when the underlying storage, shape,
+        dtype, or device of ``data`` changes.
+
+        Returns the prepared ``[T, D]`` tensor the statistics refer to.
+        """
+        data = self._prepare_data(data)
+        key = (data.data_ptr(), tuple(data.shape), data.dtype, data.device)
+        if key != self._stats_key:
+            self._compute_stats(data)
+            self._stats_key = key
+        return data
+
+    def _prepare_data(self, data: torch.Tensor) -> torch.Tensor:
+        """Move data to the target device, promote precision, make it 2-D."""
+        data = ensure_tensor(data, device=self.device)
+        # float64 for numerically demanding cumulative statistics; MPS has no
+        # float64 support, so stay in float32 there.
+        dtype = torch.float32 if data.device.type == "mps" else torch.float64
+        data = data.to(dtype)
+        if data.dim() == 1:
+            data = data.unsqueeze(1)
+        return data
+
+    def _compute_stats(self, data: torch.Tensor) -> None:
+        """Compute per-dataset sufficient statistics. Default: none."""
+
     @abstractmethod
     def pdf(self, data: torch.Tensor, t: int, s: int) -> float:
         """
-        Compute the log probability density for a data segment.
-        
+        Compute the log marginal likelihood of the segment ``data[t:s]``.
+
         Parameters
         ----------
         data : torch.Tensor
@@ -51,42 +108,58 @@ class BaseLikelihood(ABC):
             Start index of the segment (inclusive).
         s : int
             End index of the segment (exclusive).
-            
+
         Returns
         -------
         float
-            Log probability density for the segment data[t:s].
+            Log marginal likelihood of ``data[t:s]``.
         """
-        raise NotImplementedError(
-            "PDF method must be implemented in subclass."
+        raise NotImplementedError("PDF method must be implemented in subclass.")
+
+    def pdf_rows(self, data: torch.Tensor, t: int) -> torch.Tensor:
+        """
+        Log marginal likelihoods of ``data[t:s]`` for all ``s`` in ``t+1 .. n``.
+
+        Returns a tensor of shape ``[n - t]`` whose element ``j`` equals
+        ``pdf(data, t, t + 1 + j)``. Subclasses override this with a fully
+        vectorized implementation; this fallback loops over ``pdf`` so that
+        third-party likelihoods only implementing ``pdf`` keep working.
+        """
+        n = data.shape[0]
+        values = [self.pdf(data, t, s) for s in range(t + 1, n + 1)]
+        return torch.tensor(values, dtype=torch.float64, device=torch.device("cpu"))
+
+
+class _CumsumLikelihood(BaseLikelihood):
+    """Shared machinery: cumulative first and second moments per dimension."""
+
+    def _compute_stats(self, data: torch.Tensor) -> None:
+        n, d = data.shape
+        zero = torch.zeros(1, d, dtype=data.dtype, device=data.device)
+        # S1[k] = sum of data[:k], S2[k] = sum of data[:k]**2  (shape [n+1, d])
+        self._S1 = torch.cat([zero, torch.cumsum(data, dim=0)])
+        self._S2 = torch.cat([zero, torch.cumsum(data ** 2, dim=0)])
+
+    def _segment_moments(self, t: int, s_hi: int):
+        """Lengths, first and second moments of data[t:s] for s = t+1 .. s_hi."""
+        sum_x = self._S1[t + 1:s_hi + 1] - self._S1[t]
+        sum_x2 = self._S2[t + 1:s_hi + 1] - self._S2[t]
+        lengths = torch.arange(
+            1, s_hi - t + 1, dtype=sum_x.dtype, device=sum_x.device
         )
-    
-    def _check_cache(self, data: torch.Tensor, t: int, s: int) -> Optional[float]:
-        """Check if result is cached and cache is valid."""
-        if not self.cache_enabled:
-            return None
-        
-        # Check if data has changed
-        if self._cached_data is None or not torch.equal(data, self._cached_data):
-            self._cache.clear()
-            self._cached_data = data.clone() if self.cache_enabled else None
-            return None
-        
-        return self._cache.get((t, s), None)
-    
-    def _store_cache(self, t: int, s: int, result: float) -> None:
-        """Store result in cache."""
-        if self.cache_enabled:
-            self._cache[(t, s)] = result
+        return lengths, sum_x, sum_x2
 
 
-class StudentT(BaseLikelihood):
+class StudentT(_CumsumLikelihood):
     """
-    Student's t-distribution likelihood for offline changepoint detection.
-    
-    Uses conjugate Normal-Gamma priors for efficient computation of segment
-    probabilities. Suitable for univariate data with unknown mean and variance.
-    
+    Student's t (Normal-Gamma) marginal likelihood for offline detection.
+
+    Computes the exact closed-form log marginal likelihood of a segment under
+    a Normal likelihood with conjugate Normal-Gamma prior on (mean, precision)
+    (Murphy, "Conjugate Bayesian analysis of the Gaussian distribution", 2007,
+    eq. 95-97). Multivariate input is treated as independent dimensions whose
+    log marginals are summed, matching the historical behavior of this class.
+
     Parameters
     ----------
     alpha0 : float, optional
@@ -94,27 +167,30 @@ class StudentT(BaseLikelihood):
     beta0 : float, optional
         Prior rate parameter for precision (default: 1.0).
     kappa0 : float, optional
-        Prior precision for mean (default: 1.0).
+        Prior precision scaling for the mean (default: 1.0).
     mu0 : float, optional
         Prior mean (default: 0.0).
     device : str, torch.device, or None, optional
         Device to place tensors on.
     cache_enabled : bool, optional
-        Whether to enable caching (default: True).
-        
+        Retained for backward compatibility (see ``BaseLikelihood``).
+
     Examples
     --------
     >>> import torch
     >>> likelihood = StudentT()
     >>> data = torch.randn(100)
     >>> log_prob = likelihood.pdf(data, 10, 50)  # Segment from 10 to 50
-    
+
     Notes
     -----
-    This implementation follows the conjugate prior approach described in
-    Murphy, K. "Conjugate Bayesian analysis of the Gaussian distribution" (2007).
+    Earlier versions evaluated every segment point under the posterior
+    predictive with the *final* posterior parameters, which is an
+    approximation of the marginal likelihood. This implementation computes
+    the exact marginal in closed form; it is also what makes full
+    vectorization possible.
     """
-    
+
     def __init__(
         self,
         alpha0: float = 1.0,
@@ -129,11 +205,50 @@ class StudentT(BaseLikelihood):
         self.beta0 = beta0
         self.kappa0 = kappa0
         self.mu0 = mu0
-    
+
+    def _log_marginal(
+        self,
+        lengths: torch.Tensor,
+        sum_x: torch.Tensor,
+        sum_x2: torch.Tensor,
+    ) -> torch.Tensor:
+        """Exact per-dimension log marginal likelihood, summed over dimensions.
+
+        lengths: [m], sum_x/sum_x2: [m, d]  ->  returns [m].
+        """
+        n = lengths.unsqueeze(-1)  # [m, 1]
+        mean = sum_x / n
+        # sum of squared deviations; clamp guards tiny negative rounding error
+        ss = torch.clamp(sum_x2 - sum_x ** 2 / n, min=0.0)
+
+        kappa_n = self.kappa0 + n
+        alpha_n = self.alpha0 + n / 2.0
+        beta_n = (
+            self.beta0
+            + 0.5 * ss
+            + self.kappa0 * n * (mean - self.mu0) ** 2 / (2.0 * kappa_n)
+        )
+
+        log_marginal = (
+            torch.lgamma(alpha_n)
+            - math.lgamma(self.alpha0)
+            + self.alpha0 * math.log(self.beta0)
+            - alpha_n * torch.log(beta_n)
+            + 0.5 * (math.log(self.kappa0) - torch.log(kappa_n))
+            - (n / 2.0) * _LOG_2PI
+        )
+        return log_marginal.sum(dim=-1)
+
+    def pdf_rows(self, data: torch.Tensor, t: int) -> torch.Tensor:
+        data = self.setup(data)
+        n = data.shape[0]
+        lengths, sum_x, sum_x2 = self._segment_moments(t, n)
+        return self._log_marginal(lengths, sum_x, sum_x2)
+
     def pdf(self, data: torch.Tensor, t: int, s: int) -> float:
         """
-        Compute log probability for data segment using Student's t-distribution.
-        
+        Compute the log marginal likelihood of ``data[t:s]``.
+
         Parameters
         ----------
         data : torch.Tensor
@@ -142,97 +257,79 @@ class StudentT(BaseLikelihood):
             Start index (inclusive).
         s : int
             End index (exclusive).
-            
+
         Returns
         -------
         float
-            Log probability density for the segment.
+            Log marginal likelihood of the segment.
         """
-        # Check cache first
-        cached_result = self._check_cache(data, t, s)
-        if cached_result is not None:
-            return cached_result
-        
-        data = ensure_tensor(data, device=self.device)
-        
-        # Extract segment
-        segment = data[t:s]
-        n = s - t
-        
-        if n == 0:
-            result = 0.0
-            self._store_cache(t, s, result)
-            return result
-        
-        # Compute sufficient statistics
-        sample_mean = segment.mean()
-        sample_var = segment.var(unbiased=False) if n > 1 else torch.tensor(0.0, device=self.device)
-        
-        # Update hyperparameters using conjugate prior formulas
-        kappa_n = torch.tensor(self.kappa0 + n, device=self.device)
-        mu_n = (torch.tensor(self.kappa0, device=self.device) * torch.tensor(self.mu0, device=self.device) + n * sample_mean) / kappa_n
-        alpha_n = torch.tensor(self.alpha0 + n / 2, device=self.device)
-        
-        beta_n = (
-            torch.tensor(self.beta0, device=self.device) + 
-            0.5 * n * sample_var +
-            (torch.tensor(self.kappa0, device=self.device) * n * (sample_mean - torch.tensor(self.mu0, device=self.device)) ** 2) / (2 * kappa_n)
-        )
-        
-        # Student's t parameters for marginal likelihood
-        nu_n = (2.0 * alpha_n).detach()
-        scale = torch.sqrt(beta_n * kappa_n / (alpha_n * self.kappa0))
-        
-        # Compute log marginal likelihood using the closed-form formula
-        # This is more numerically stable than computing the product of individual densities
-        log_prob = torch.tensor(0.0, device=self.device)
-        
-        for i in range(n):
-            x_i = segment[i]
-            # For each point, compute its contribution to the log likelihood
-            log_prob += (
-                torch.lgamma((nu_n + 1) / 2) - torch.lgamma(nu_n / 2) -
-                0.5 * torch.log(torch.pi * nu_n) - torch.log(scale) -
-                ((nu_n + 1) / 2) * torch.log(1 + ((x_i - mu_n) / scale) ** 2 / nu_n)
-            )
-        
-        result = log_prob.item()
-        self._store_cache(t, s, result)
-        return result
+        if s <= t:
+            return 0.0
+        data = self.setup(data)
+        lengths, sum_x, sum_x2 = self._segment_moments(t, s)
+        return self._log_marginal(lengths[-1:], sum_x[-1:], sum_x2[-1:]).item()
 
 
-class IndependentFeaturesLikelihood(BaseLikelihood):
+class IndependentFeaturesLikelihood(_CumsumLikelihood):
     """
     Independent features likelihood for multivariate data.
-    
-    Assumes features are independent with unknown means and variances.
-    Uses conjugate Normal-Gamma priors for each dimension separately.
-    
+
+    Assumes features are independent with unknown means and variances,
+    following section 3.1 of Xuan & Murphy (2007). The math matches the
+    original NumPy implementation of this package exactly.
+
     Parameters
     ----------
     device : str, torch.device, or None, optional
         Device to place tensors on.
     cache_enabled : bool, optional
-        Whether to enable caching (default: True).
-        
+        Retained for backward compatibility (see ``BaseLikelihood``).
+
     Examples
     --------
     >>> import torch
     >>> likelihood = IndependentFeaturesLikelihood()
     >>> data = torch.randn(100, 5)  # 100 time points, 5 dimensions
     >>> log_prob = likelihood.pdf(data, 10, 50)
-    
-    Notes
-    -----
-    This model treats each dimension independently, which simplifies computation
-    but ignores potential correlations between dimensions. Based on the approach
-    in Xiang & Murphy (2007).
     """
-    
+
+    def _log_marginal(
+        self,
+        lengths: torch.Tensor,
+        sum_x: torch.Tensor,
+        sum_x2: torch.Tensor,
+    ) -> torch.Tensor:
+        m, d = sum_x.shape
+        n = lengths  # [m]
+        # Weakest proper prior: N0 = d, V0 = variance of the flattened segment
+        # (population variance over all n*d entries), exactly as in the
+        # original implementation.
+        total = sum_x.sum(dim=1)
+        total_sq = sum_x2.sum(dim=1)
+        count = n * d
+        v0 = total_sq / count - (total / count) ** 2  # [m]
+
+        n0 = float(d)
+        vn = v0.unsqueeze(-1) + sum_x2  # [m, d]
+
+        return d * (
+            -(n / 2.0) * _LOG_PI
+            + (n0 / 2.0) * torch.log(v0)
+            - math.lgamma(n0 / 2.0)
+            + torch.lgamma((n0 + n) / 2.0)
+        ) - ((n0 + n) / 2.0) * torch.log(vn).sum(dim=-1)
+
+    def pdf_rows(self, data: torch.Tensor, t: int) -> torch.Tensor:
+        data = self.setup(data)
+        n = data.shape[0]
+        lengths, sum_x, sum_x2 = self._segment_moments(t, n)
+        return self._log_marginal(lengths, sum_x, sum_x2)
+
     def pdf(self, data: torch.Tensor, t: int, s: int) -> float:
         """
-        Compute log probability assuming independent features.
-        
+        Compute the log marginal likelihood of ``data[t:s]`` assuming
+        independent features.
+
         Parameters
         ----------
         data : torch.Tensor
@@ -241,86 +338,95 @@ class IndependentFeaturesLikelihood(BaseLikelihood):
             Start index (inclusive).
         s : int
             End index (exclusive).
-            
+
         Returns
         -------
         float
-            Log probability density for the segment.
+            Log marginal likelihood of the segment.
         """
-        # Check cache first
-        cached_result = self._check_cache(data, t, s)
-        if cached_result is not None:
-            return cached_result
-        
-        data = ensure_tensor(data, device=self.device)
-        
-        # Handle both univariate and multivariate data
-        if data.dim() == 1:
-            data = data.unsqueeze(1)  # Make it [T, 1]
-        
-        # Extract segment
-        x = data[t:s]
-        n, d = x.shape
-        
-        if n == 0:
-            result = 0.0
-            self._store_cache(t, s, result)
-            return result
-        
-        # Weakest proper prior
-        N0 = d
-        V0 = x.var(dim=0, unbiased=False)
-        
-        # Handle case where variance is 0 (constant data)
-        V0 = torch.clamp(V0, min=1e-8)
-        
-        # Updated parameters
-        Vn = V0 + (x ** 2).sum(dim=0)
-        
-        # Compute log marginal likelihood (Section 3.1 from Xiang & Murphy paper)
-        log_prob = d * (
-            -(n / 2) * torch.log(torch.tensor(torch.pi, device=self.device)) +
-            (N0 / 2) * torch.log(V0).sum() -
-            torch.lgamma(torch.tensor(N0 / 2, device=self.device)) +
-            torch.lgamma(torch.tensor((N0 + n) / 2, device=self.device))
-        ) - ((N0 + n) / 2) * torch.log(Vn).sum()
-        
-        result = log_prob.item()
-        self._store_cache(t, s, result)
-        return result
+        if s <= t:
+            return 0.0
+        data = self.setup(data)
+        lengths, sum_x, sum_x2 = self._segment_moments(t, s)
+        return self._log_marginal(lengths[-1:], sum_x[-1:], sum_x2[-1:]).item()
 
 
-class FullCovarianceLikelihood(BaseLikelihood):
+class FullCovarianceLikelihood(_CumsumLikelihood):
     """
     Full covariance likelihood for multivariate data.
-    
-    Models the full covariance structure using a Normal-Wishart conjugate prior.
-    More flexible than independent features but computationally more expensive.
-    
+
+    Models the full covariance structure following section 3.2 of
+    Xuan & Murphy (2007). The math matches the original NumPy implementation
+    of this package exactly.
+
     Parameters
     ----------
     device : str, torch.device, or None, optional
         Device to place tensors on.
     cache_enabled : bool, optional
-        Whether to enable caching (default: True).
-        
+        Retained for backward compatibility (see ``BaseLikelihood``).
+
     Examples
     --------
     >>> import torch
     >>> likelihood = FullCovarianceLikelihood()
     >>> data = torch.randn(100, 3)  # 100 time points, 3 dimensions
     >>> log_prob = likelihood.pdf(data, 10, 50)
-    
-    Notes
-    -----
-    This model captures correlations between dimensions but requires more data
-    for reliable estimation. Based on the approach in Xiang & Murphy (2007).
     """
-    
+
+    def _compute_stats(self, data: torch.Tensor) -> None:
+        super()._compute_stats(data)
+        n, d = data.shape
+        outer = torch.einsum("ni,nj->nij", data, data)
+        zero = torch.zeros(1, d, d, dtype=data.dtype, device=data.device)
+        # C[k] = sum of outer products of data[:k]  (shape [n+1, d, d])
+        self._C = torch.cat([zero, torch.cumsum(outer, dim=0)])
+
+    def _log_marginal(
+        self,
+        lengths: torch.Tensor,
+        sum_x: torch.Tensor,
+        sum_x2: torch.Tensor,
+        sum_outer: torch.Tensor,
+    ) -> torch.Tensor:
+        m, d = sum_x.shape
+        n = lengths
+        # Weakest proper prior: N0 = d, V0 = var(flattened segment) * I.
+        total = sum_x.sum(dim=1)
+        total_sq = sum_x2.sum(dim=1)
+        count = n * d
+        v0 = total_sq / count - (total / count) ** 2  # [m]
+
+        n0 = float(d)
+        eye = torch.eye(d, dtype=sum_x.dtype, device=sum_x.device)
+        vn = v0.unsqueeze(-1).unsqueeze(-1) * eye + sum_outer  # [m, d, d]
+
+        logdet_v0 = d * torch.log(v0)
+        logdet_vn = torch.linalg.slogdet(vn)[1]
+
+        mg0 = _multigammaln(torch.full_like(n, n0 / 2.0), d)
+        mgn = _multigammaln((n0 + n) / 2.0, d)
+
+        return (
+            -(d * n / 2.0) * _LOG_PI
+            + (n0 / 2.0) * logdet_v0
+            - mg0
+            + mgn
+            - ((n0 + n) / 2.0) * logdet_vn
+        )
+
+    def pdf_rows(self, data: torch.Tensor, t: int) -> torch.Tensor:
+        data = self.setup(data)
+        n = data.shape[0]
+        lengths, sum_x, sum_x2 = self._segment_moments(t, n)
+        sum_outer = self._C[t + 1:n + 1] - self._C[t]
+        return self._log_marginal(lengths, sum_x, sum_x2, sum_outer)
+
     def pdf(self, data: torch.Tensor, t: int, s: int) -> float:
         """
-        Compute log probability using full covariance model.
-        
+        Compute the log marginal likelihood of ``data[t:s]`` using the full
+        covariance model.
+
         Parameters
         ----------
         data : torch.Tensor
@@ -329,82 +435,30 @@ class FullCovarianceLikelihood(BaseLikelihood):
             Start index (inclusive).
         s : int
             End index (exclusive).
-            
+
         Returns
         -------
         float
-            Log probability density for the segment.
+            Log marginal likelihood of the segment.
         """
-        # Check cache first
-        cached_result = self._check_cache(data, t, s)
-        if cached_result is not None:
-            return cached_result
-        
-        data = ensure_tensor(data, device=self.device)
-        
-        # Handle both univariate and multivariate data
-        if data.dim() == 1:
-            data = data.unsqueeze(1)  # Make it [T, 1]
-        
-        # Extract segment
-        x = data[t:s]
-        n, dim = x.shape
-        
-        if n == 0:
-            result = 0.0
-            self._store_cache(t, s, result)
-            return result
-        
-        # Weakest proper prior
-        N0 = dim
-        V0 = x.var(dim=0, unbiased=False).item() * torch.eye(dim, device=self.device)
-        
-        # Ensure V0 is positive definite
-        V0 = V0 + 1e-6 * torch.eye(dim, device=self.device)
-        
-        # Compute outer product sum efficiently using einsum
-        Vn = V0 + torch.einsum('ij,ik->jk', x, x)
-        
-        # Ensure Vn is positive definite
-        try:
-            L_V0 = torch.linalg.cholesky(V0)
-            L_Vn = torch.linalg.cholesky(Vn)
-            logdet_V0 = 2 * torch.diagonal(L_V0).log().sum()
-            logdet_Vn = 2 * torch.diagonal(L_Vn).log().sum()
-        except RuntimeError:
-            # Fallback to eigenvalue decomposition if Cholesky fails
-            logdet_V0 = torch.linalg.slogdet(V0)[1]
-            logdet_Vn = torch.linalg.slogdet(Vn)[1]
-        
-        # Multivariate gamma function (log)
-        def multigammaln(a: torch.Tensor, p: int) -> torch.Tensor:
-            """Multivariate log-gamma function."""
-            result = (p * (p - 1) / 4) * torch.log(torch.tensor(torch.pi, device=self.device))
-            for j in range(p):
-                result += torch.lgamma(a - j / 2)
-            return result
-        
-        # Compute log marginal likelihood (Section 3.2 from Xiang & Murphy paper)
-        log_prob = (
-            -(dim * n / 2) * torch.log(torch.tensor(torch.pi, device=self.device)) +
-            (N0 / 2) * logdet_V0 -
-            multigammaln(torch.tensor(N0 / 2, device=self.device), dim) +
-            multigammaln(torch.tensor((N0 + n) / 2, device=self.device), dim) -
-            ((N0 + n) / 2) * logdet_Vn
-        )
-        
-        result = log_prob.item()
-        self._store_cache(t, s, result)
-        return result
+        if s <= t:
+            return 0.0
+        data = self.setup(data)
+        lengths, sum_x, sum_x2 = self._segment_moments(t, s)
+        sum_outer = (self._C[s:s + 1] - self._C[t])
+        return self._log_marginal(
+            lengths[-1:], sum_x[-1:], sum_x2[-1:], sum_outer
+        ).item()
 
 
-class MultivariateT(BaseLikelihood):
+class MultivariateT(_CumsumLikelihood):
     """
-    Multivariate Student's t-distribution likelihood for offline detection.
-    
-    Uses Normal-Wishart conjugate priors for modeling multivariate segments
-    with unknown mean vector and covariance matrix.
-    
+    Multivariate Student's t (Normal-Wishart) likelihood for offline detection.
+
+    Computes the exact log marginal likelihood of a segment under a
+    multivariate Normal likelihood with conjugate Normal-Wishart prior on
+    (mean vector, precision matrix).
+
     Parameters
     ----------
     dims : int, optional
@@ -420,22 +474,16 @@ class MultivariateT(BaseLikelihood):
     device : str, torch.device, or None, optional
         Device to place tensors on.
     cache_enabled : bool, optional
-        Whether to enable caching (default: True).
-        
+        Retained for backward compatibility (see ``BaseLikelihood``).
+
     Examples
     --------
     >>> import torch
     >>> likelihood = MultivariateT(dims=3)
     >>> data = torch.randn(100, 3)
     >>> log_prob = likelihood.pdf(data, 10, 50)
-    
-    Notes
-    -----
-    This is a more principled approach to multivariate modeling than the
-    independent features model, as it properly accounts for the covariance
-    structure through the multivariate t-distribution.
     """
-    
+
     def __init__(
         self,
         dims: Optional[int] = None,
@@ -449,37 +497,84 @@ class MultivariateT(BaseLikelihood):
         super().__init__(device, cache_enabled)
         self.dims = dims
         self.kappa0 = kappa0
-        
-        # Set defaults based on dimensions (will be set when first called if None)
         self.dof0 = dof0
         self.mu0 = mu0
         self.Psi0 = Psi0
-    
-    def _initialize_params(self, data: torch.Tensor) -> None:
-        """Initialize parameters based on data dimensions."""
-        if data.dim() == 1:
-            data = data.unsqueeze(1)
-        
+
+    def _resolved_params(self, data: torch.Tensor):
+        d = data.shape[1]
         if self.dims is None:
-            self.dims = data.shape[1]
-        
-        if self.dof0 is None:
-            self.dof0 = self.dims + 1
-        
+            self.dims = d
+        dof0 = self.dof0 if self.dof0 is not None else d + 1
         if self.mu0 is None:
-            self.mu0 = torch.zeros(self.dims, device=self.device)
+            mu0 = torch.zeros(d, dtype=data.dtype, device=data.device)
         else:
-            self.mu0 = ensure_tensor(self.mu0, device=self.device)
-        
+            mu0 = ensure_tensor(self.mu0, device=data.device).to(data.dtype)
         if self.Psi0 is None:
-            self.Psi0 = torch.eye(self.dims, device=self.device)
+            psi0 = torch.eye(d, dtype=data.dtype, device=data.device)
         else:
-            self.Psi0 = ensure_tensor(self.Psi0, device=self.device)
-    
+            psi0 = ensure_tensor(self.Psi0, device=data.device).to(data.dtype)
+        return dof0, mu0, psi0
+
+    def _compute_stats(self, data: torch.Tensor) -> None:
+        super()._compute_stats(data)
+        n, d = data.shape
+        outer = torch.einsum("ni,nj->nij", data, data)
+        zero = torch.zeros(1, d, d, dtype=data.dtype, device=data.device)
+        self._C = torch.cat([zero, torch.cumsum(outer, dim=0)])
+
+    def _log_marginal(
+        self,
+        data: torch.Tensor,
+        lengths: torch.Tensor,
+        sum_x: torch.Tensor,
+        sum_outer: torch.Tensor,
+    ) -> torch.Tensor:
+        m, d = sum_x.shape
+        dof0, mu0, psi0 = self._resolved_params(data)
+        n = lengths
+
+        mean = sum_x / n.unsqueeze(-1)  # [m, d]
+        # Scatter matrix around the segment mean:
+        # S = sum(x x^T) - n * mean mean^T
+        scatter = sum_outer - n.unsqueeze(-1).unsqueeze(-1) * torch.einsum(
+            "mi,mj->mij", mean, mean
+        )
+
+        kappa_n = self.kappa0 + n
+        dof_n = dof0 + n
+        diff = mean - mu0
+        psi_n = (
+            psi0
+            + scatter
+            + (self.kappa0 * n / kappa_n).unsqueeze(-1).unsqueeze(-1)
+            * torch.einsum("mi,mj->mij", diff, diff)
+        )
+
+        logdet_psi0 = torch.linalg.slogdet(psi0)[1]
+        logdet_psi_n = torch.linalg.slogdet(psi_n)[1]
+
+        return (
+            _multigammaln(dof_n / 2.0, d)
+            - _multigammaln(torch.full_like(n, dof0 / 2.0), d)
+            + (dof0 / 2.0) * logdet_psi0
+            - (dof_n / 2.0) * logdet_psi_n
+            + (d / 2.0) * (math.log(self.kappa0) - torch.log(kappa_n))
+            - (n * d / 2.0) * _LOG_PI
+        )
+
+    def pdf_rows(self, data: torch.Tensor, t: int) -> torch.Tensor:
+        data = self.setup(data)
+        n = data.shape[0]
+        lengths, sum_x, _ = self._segment_moments(t, n)
+        sum_outer = self._C[t + 1:n + 1] - self._C[t]
+        return self._log_marginal(data, lengths, sum_x, sum_outer)
+
     def pdf(self, data: torch.Tensor, t: int, s: int) -> float:
         """
-        Compute log probability using multivariate Student's t-distribution.
-        
+        Compute the log marginal likelihood of ``data[t:s]`` under the
+        multivariate Student's t model.
+
         Parameters
         ----------
         data : torch.Tensor
@@ -488,76 +583,17 @@ class MultivariateT(BaseLikelihood):
             Start index (inclusive).
         s : int
             End index (exclusive).
-            
+
         Returns
         -------
         float
-            Log probability density for the segment.
+            Log marginal likelihood of the segment.
         """
-        # Check cache first
-        cached_result = self._check_cache(data, t, s)
-        if cached_result is not None:
-            return cached_result
-        
-        data = ensure_tensor(data, device=self.device)
-        self._initialize_params(data)
-        
-        # Handle univariate case
-        if data.dim() == 1:
-            data = data.unsqueeze(1)
-        
-        # Extract segment
-        x = data[t:s]
-        n, d = x.shape
-        
-        if n == 0:
-            result = 0.0
-            self._store_cache(t, s, result)
-            return result
-        
-        # Update hyperparameters
-        sample_mean = x.mean(dim=0)
-        kappa_n = self.kappa0 + n
-        mu_n = (self.kappa0 * self.mu0 + n * sample_mean) / kappa_n
-        dof_n = self.dof0 + n
-        
-        # Update scale matrix
-        centered = x - sample_mean.unsqueeze(0)
-        S = torch.matmul(centered.T, centered)
-        
-        diff = sample_mean - self.mu0
-        Psi_n = (
-            self.Psi0 + S + 
-            (self.kappa0 * n / kappa_n) * torch.outer(diff, diff)
-        )
-        
-        # Multivariate gamma function (log)
-        def multigammaln(a: torch.Tensor, p: int) -> torch.Tensor:
-            result = (p * (p - 1) / 4) * torch.log(torch.tensor(torch.pi, device=self.device))
-            for j in range(p):
-                result += torch.lgamma(a - j / 2)
-            return result
-        
-        # Compute log marginal likelihood for multivariate t-distribution
-        try:
-            logdet_Psi0 = torch.linalg.slogdet(self.Psi0)[1]
-            logdet_Psi_n = torch.linalg.slogdet(Psi_n)[1]
-        except RuntimeError:
-            # Add regularization if matrices are not positive definite
-            Psi0_reg = self.Psi0 + 1e-6 * torch.eye(d, device=self.device)
-            Psi_n_reg = Psi_n + 1e-6 * torch.eye(d, device=self.device)
-            logdet_Psi0 = torch.linalg.slogdet(Psi0_reg)[1]
-            logdet_Psi_n = torch.linalg.slogdet(Psi_n_reg)[1]
-        
-        log_prob = (
-            multigammaln(torch.tensor(dof_n / 2, device=self.device), d) -
-            multigammaln(torch.tensor(self.dof0 / 2, device=self.device), d) +
-            (self.dof0 / 2) * logdet_Psi0 -
-            (dof_n / 2) * logdet_Psi_n +
-            (d / 2) * torch.log(torch.tensor(self.kappa0 / kappa_n, device=self.device)) -
-            (n * d / 2) * torch.log(torch.tensor(torch.pi, device=self.device))
-        )
-        
-        result = log_prob.item()
-        self._store_cache(t, s, result)
-        return result
+        if s <= t:
+            return 0.0
+        data = self.setup(data)
+        lengths, sum_x, _ = self._segment_moments(t, s)
+        sum_outer = self._C[s:s + 1] - self._C[t]
+        return self._log_marginal(
+            data, lengths[-1:], sum_x[-1:], sum_outer
+        ).item()
