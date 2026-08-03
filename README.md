@@ -1,6 +1,6 @@
 # Bayesian Changepoint Detection
 
-[![Python 3.8+](https://img.shields.io/badge/python-3.8+-blue.svg)](https://www.python.org/downloads/)
+[![Python 3.9+](https://img.shields.io/badge/python-3.9+-blue.svg)](https://www.python.org/downloads/)
 [![PyTorch](https://img.shields.io/badge/PyTorch-2.0+-red.svg)](https://pytorch.org/)
 [![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 
@@ -18,7 +18,20 @@ A modern, PyTorch-based library for Bayesian changepoint detection in time serie
 
 ## Installation
 
-This package supports multiple installation methods with modern Python package managers. Choose the method that best fits your workflow.
+This package is published on PyPI as **`bayescd`** — the name
+`bayesian-changepoint-detection` on PyPI belongs to an unrelated project. The
+import name is unaffected:
+
+```bash
+pip install bayescd
+```
+
+```python
+import bayesian_changepoint_detection
+```
+
+The sections below cover the supported installation methods with modern Python
+package managers. Choose the one that best fits your workflow.
 
 ### Method 1: Using UV (Recommended)
 
@@ -41,7 +54,7 @@ pip install uv
 # Create a new virtual environment and install
 uv venv
 source .venv/bin/activate  # On Windows: .venv\Scripts\activate
-uv pip install bayesian-changepoint-detection
+uv pip install bayescd
 
 # Or install directly with auto-managed environment
 uv run python -c "import bayesian_changepoint_detection; print('Success!')"
@@ -85,7 +98,7 @@ pip install --upgrade pip
 #### Install the package
 ```bash
 # Install from PyPI (when available)
-pip install bayesian-changepoint-detection
+pip install bayescd
 
 # Or install from source
 git clone https://github.com/estcarisimo/bayesian_changepoint_detection.git
@@ -107,7 +120,7 @@ conda activate bayesian-cp
 conda install pytorch torchvision torchaudio -c pytorch
 
 # Install the package
-pip install bayesian-changepoint-detection
+pip install bayescd
 
 # Or from source
 git clone https://github.com/estcarisimo/bayesian_changepoint_detection.git
@@ -119,17 +132,20 @@ pip install -e ".[dev]"
 
 The package defines several optional dependency groups:
 
-- **`dev`**: Development tools (pytest, black, mypy, etc.)
+- **`dev`**: Development and test tools (pytest, numpy, scipy, black, mypy, etc.)
+- **`plot`**: Plotting for the examples and notebooks (matplotlib, seaborn)
 - **`docs`**: Documentation generation (sphinx, numpydoc)
 - **`gpu`**: GPU support (CUDA-enabled PyTorch)
+
+The library itself depends only on PyTorch.
 
 #### Install specific groups
 ```bash
 # With UV
-uv pip install "bayesian-changepoint-detection[dev,gpu]"
+uv pip install "bayescd[dev,gpu]"
 
 # With pip
-pip install "bayesian-changepoint-detection[dev,gpu]"
+pip install "bayescd[dev,gpu]"
 ```
 
 ### GPU Support
@@ -146,7 +162,7 @@ pip install torch torchvision torchaudio --index-url https://download.pytorch.or
 pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu121
 
 # Then install the package
-pip install bayesian-changepoint-detection
+pip install bayescd
 # or from source:
 pip install -e .
 ```
@@ -157,10 +173,10 @@ pip install -e .
 # install the GPU version correctly. Option 1 is more reliable.
 
 # UV
-uv pip install "bayesian-changepoint-detection[gpu]"
+uv pip install "bayescd[gpu]"
 
 # pip
-pip install "bayesian-changepoint-detection[gpu]"
+pip install "bayescd[gpu]"
 ```
 
 #### Verify GPU Support
@@ -225,14 +241,14 @@ partition, data = generate_mean_shift_example(3, 50)
 print(f"Generated test data: {data.shape}")
 ```
 
-Or run the comprehensive test script:
+Or run one of the examples:
 
 ```bash
-# Run quick test (after installation)
-python quick_test.py
-
 # Run example (from project root, without installation)
 PYTHONPATH=. python examples/simple_example.py
+
+# Run the test suite (requires the dev extra)
+pytest
 ```
 
 ### Development Setup
@@ -310,7 +326,7 @@ mypy bayesian_changepoint_detection
 4. **Permission errors**
    ```bash
    # Use --user flag if you can't create virtual environments
-   pip install --user bayesian-changepoint-detection
+   pip install --user bayescd
    ```
 
 ## Quick Start

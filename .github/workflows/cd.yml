@@ -1,5 +1,6 @@
-# This workflows will upload a Python Package using Twine when a release is created
-# For more information see: https://help.github.com/en/actions/language-and-framework-guides/using-python-with-github-actions#publishing-to-package-registries
+# Uploads a Python package to PyPI when a release is created.
+# For more information see:
+# https://packaging.python.org/en/latest/guides/publishing-package-distribution-releases-using-github-actions-ci-cd-workflows/
 
 name: CD
 
@@ -13,32 +14,30 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/checkout@v2
+    - uses: actions/checkout@v4
 
-    - name: Set up Python 3.10
-      uses: actions/setup-python@v2
+    - name: Set up Python
+      uses: actions/setup-python@v5
       with:
-        python-version: '3.10'
+        python-version: '3.12'
 
-    - name: Install dependencies
+    - name: Build distributions
       run: |
         python -m pip install --upgrade pip
-        pip install setuptools wheel twine
+        pip install build twine
+        python -m build
+        twine check dist/*
 
 ## Prod PyPI
-    - name: Build and publish
+    - name: Publish
       env:
         TWINE_USERNAME: ${{ secrets.PYPI_USERNAME }}
         TWINE_PASSWORD: ${{ secrets.PYPI_PROD_PASSWORD }}
-      run: |
-        python setup.py sdist bdist_wheel
-        twine upload dist/*
+      run: twine upload dist/*
 
 ## Test PyPI
-#    - name: Build and publish
+#    - name: Publish
 #      env:
 #        TWINE_USERNAME: ${{ secrets.PYPI_USERNAME }}
 #        TWINE_PASSWORD: ${{ secrets.PYPI_TEST_PASSWORD }}
-#      run: |
-#        python setup.py sdist bdist_wheel
-#        twine upload --repository testpypi dist/*
+#      run: twine upload --repository testpypi dist/*
