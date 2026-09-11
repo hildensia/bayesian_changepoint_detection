@@ -92,12 +92,16 @@ def offline_changepoint_detection(
     n = data.shape[0]  # First dimension is time
 
     # Precompute per-dataset sufficient statistics (cumulative sums) so that
-    # every pdf_rows call below is a single vectorized pass.
+    # every pdf_rows call below is a single vectorized pass. The caller's
+    # tensor is passed on unchanged (shape and dtype included): built-in
+    # likelihoods re-enter setup() and hit the cache, while third-party
+    # likelihoods that only implement pdf(data, t, s) see the same data they
+    # would have seen before setup() existed.
     if hasattr(likelihood_model, "device"):
         likelihood_model.device = device
     setup = getattr(likelihood_model, "setup", None)
     if setup is not None:
-        data = setup(data)
+        setup(data)
 
     # Initialize arrays
     Q = torch.zeros(n, device=device, dtype=dtype)

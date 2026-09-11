@@ -148,3 +148,27 @@ def test_float32_input_hits_the_statistics_cache():
     model.pdf_rows(data, 0)
     model.pdf_rows(data, 3)
     assert len(calls) == 1
+
+
+def test_detection_passes_caller_data_unchanged_to_third_party_pdf():
+    """offline_changepoint_detection must not reshape or recast the data it
+    hands to a likelihood that only implements the scalar pdf API."""
+    from functools import partial
+    from bayesian_changepoint_detection import (
+        const_prior, offline_changepoint_detection,
+    )
+
+    seen = []
+
+    class Recording(BaseLikelihood):
+        def pdf(self, data, t, s):
+            seen.append((tuple(data.shape), data.dtype))
+            return -float(s - t)
+
+    data = torch.randn(12, dtype=torch.float32)
+    offline_changepoint_detection(
+        data, partial(const_prior, p=1 / 13), Recording(device="cpu"),
+        device="cpu",
+    )
+    assert seen and all(shape == (12,) for shape, _ in seen)
+    assert all(dtype == torch.float32 for _, dtype in seen)
