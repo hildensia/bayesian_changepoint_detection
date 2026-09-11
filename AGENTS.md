@@ -36,8 +36,10 @@ Two things that surprise people:
   than on CPU. The same suite can take minutes on Apple Silicon and seconds on
   CPU. When adding tests, pass `device="cpu"` explicitly unless the test is
   specifically about device handling.
-- Tests that need a GPU are marked `@pytest.mark.gpu` and skip themselves.
-  Do not make an unmarked test depend on an accelerator being present.
+- Tests that need a GPU should carry `@pytest.mark.gpu` and skip themselves
+  when none is present. Most do; `test_device_consistency` in
+  `tests/test_integration.py` skips without the marker. Do not make a test
+  depend on an accelerator being present without a skip.
 
 ## Layout
 
@@ -100,22 +102,26 @@ CPU-only CI will not catch.
 
 ## Workflow: sessions, reviews, merging
 
-This project is maintained in short sessions, often with an AI agent. The
-running record lives outside the repo:
+Everything a contributor needs is in this repository: the open PRs and
+issues are the source of truth for what is in flight. The maintainers also
+keep a private roadmap and per-session log in Notion (*"BCP — Bayesian
+Changepoint Detection"*); if you have access to it, read the last session
+entry before starting and append one when you finish (what was done, what
+was verified with which commands, what is pending, branch/commit/PR, next
+action). If you do not, start from `git log`, the open PRs and the issues.
 
-- **Session log and roadmap:** the Notion page *"BCP — Bayesian Changepoint
-  Detection"* (under *Open source*). At the start of a session, read its last
-  entry under *Registro de sesiones* and compare it with the current state of
-  `master` and the open PRs before touching code. At the end, append an
-  entry: what was done, what was verified (commands and results), what is
-  pending, branch/commit/PR, and the next concrete action. Tick roadmap
-  boxes only for work that was actually verified.
-- **Every PR:** request a Copilot code review (from the *Reviewers* gear on
-  the PR page; the API request works too), address its comments or say why
-  not, and do not merge until CI and Copilot are both green. Keep PRs small
-  and single-purpose; do not mix large refactors with statistical fixes.
-- **Merging** requires write access to `hildensia/bayesian_changepoint_detection`.
-  Branch protection, repository secrets, PyPI credentials and Copilot
+For every PR:
+
+- Keep it small and single-purpose. Do not mix large refactors with
+  statistical fixes.
+- CI must be green before merging.
+- Request whatever automated code review the repository has enabled
+  (currently GitHub Copilot code review, requested from the *Reviewers* gear
+  on the PR page or via the API). Address each comment or state in the PR
+  why it does not apply. Where that review is unavailable, a human review
+  stands in for it.
+- Merging needs write access to `hildensia/bayesian_changepoint_detection`.
+  Branch protection, repository secrets, PyPI credentials and review-tool
   settings need the repository owner.
 
 ## Changing the math
@@ -144,4 +150,6 @@ the asymptotics. Benchmark before and after, and put the numbers in the PR.
 - Xuan, X., & Murphy, K. (2007). *Modeling changing dependency structure in
   multivariate time series*. ICML. (Multivariate offline likelihoods.)
 - Murphy, K. (2007). *Conjugate Bayesian analysis of the Gaussian
-  distribution*. (Normal-Gamma updates used throughout.)
+  distribution*. (Normal-Gamma updates for the univariate `StudentT`
+  likelihoods; the multivariate likelihoods use Normal-Wishart conjugacy,
+  see Xuan & Murphy above and the docstrings in both likelihood modules.)
