@@ -110,3 +110,41 @@ def test_in_place_mutation_invalidates_cached_statistics(cls):
     fresh = cls(device="cpu").pdf(data.clone(), 5, 25)
     assert after != before
     assert after == pytest.approx(fresh, rel=1e-12)
+
+
+@pytest.mark.parametrize("cls", [
+    IndependentFeaturesLikelihood,
+    FullCovarianceLikelihood,
+])
+def test_univariate_input_has_finite_likelihoods(cls):
+    """Length-one segments have zero variance; the prior floor must keep
+    the log likelihood finite so Q does not become nan (regression)."""
+    torch.manual_seed(0)
+    data = torch.cat([torch.randn(30), torch.randn(30) + 4.0])
+    model = cls(device="cpu")
+    rows = model.pdf_rows(data, 5)
+    assert torch.isfinite(rows).all()
+
+    from functools import partial
+    from bayesian_changepoint_detection import (
+        const_prior, offline_changepoint_detection,
+    )
+    Q, _, Pcp = offline_changepoint_detection(
+        data, partial(const_prior, p=1 / 61), model, device="cpu"
+    )
+    assert torch.isfinite(Q).all()
+    cp = torch.exp(Pcp).sum(0)
+    assert abs(int(cp.argmax()) - 29) <= 2
+
+
+def test_float32_input_hits_the_statistics_cache():
+    """Passing the same float32 tensor twice must not recompute statistics."""
+    torch.manual_seed(1)
+    data = torch.randn(50, 2, dtype=torch.float32)
+    model = StudentT(device="cpu")
+    calls = []
+    original = model._compute_stats
+    model._compute_stats = lambda d: (calls.append(1), original(d))
+    model.pdf_rows(data, 0)
+    model.pdf_rows(data, 3)
+    assert len(calls) == 1

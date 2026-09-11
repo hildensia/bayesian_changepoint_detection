@@ -28,6 +28,7 @@ from .device import ensure_tensor, get_device
 
 _LOG_PI = math.log(math.pi)
 _LOG_2PI = math.log(2.0 * math.pi)
+_V0_FLOOR = 1e-8  # floor on the data-derived prior variance
 
 
 def _multigammaln(a: torch.Tensor, p: int) -> torch.Tensor:
@@ -63,6 +64,7 @@ class BaseLikelihood(ABC):
         self.device = get_device(device)
         self.cache_enabled = cache_enabled
         self._stats_key = None
+        self._prepared = None
 
     def setup(self, data: torch.Tensor) -> torch.Tensor:
         """
@@ -75,11 +77,26 @@ class BaseLikelihood(ABC):
 
         Returns the prepared ``[T, D]`` tensor the statistics refer to.
         """
-        data = self._prepare_data(data)
+        # Key on the tensor the caller passed, *before* any device or dtype
+        # conversion: converting allocates a fresh tensor, so keying on the
+        # converted one would miss the cache on every call with float32 input.
         # ``data_ptr`` identifies storage, not contents; ``_version`` is
         # PyTorch's per-tensor in-place mutation counter, so ``x[0] = 1``
         # after a previous call invalidates the cached statistics.
-        key = (
+        key = self._cache_key(data)
+        if key is not None and key == self._stats_key:
+            return self._prepared
+        prepared = self._prepare_data(data)
+        self._compute_stats(prepared)
+        self._stats_key = key
+        self._prepared = prepared
+        return prepared
+
+    @staticmethod
+    def _cache_key(data) -> Optional[tuple]:
+        if not isinstance(data, torch.Tensor):
+            return None  # lists / arrays: no stable identity, always recompute
+        return (
             data.data_ptr(),
             data._version,
             tuple(data.shape),
@@ -87,10 +104,6 @@ class BaseLikelihood(ABC):
             data.dtype,
             data.device,
         )
-        if key != self._stats_key:
-            self._compute_stats(data)
-            self._stats_key = key
-        return data
 
     def _prepare_data(self, data: torch.Tensor) -> torch.Tensor:
         """Move data to the target device, promote precision, make it 2-D."""
@@ -319,6 +332,10 @@ class IndependentFeaturesLikelihood(_CumsumLikelihood):
         total_sq = sum_x2.sum(dim=1)
         count = n * d
         v0 = total_sq / count - (total / count) ** 2  # [m]
+        # A length-one univariate segment (or any constant segment) has zero
+        # variance, and rounding can make it slightly negative; without a
+        # floor, log(v0) is -inf/nan and poisons Q. Same floor as before.
+        v0 = torch.clamp(v0, min=_V0_FLOOR)
 
         n0 = float(d)
         vn = v0.unsqueeze(-1) + sum_x2  # [m, d]
@@ -407,6 +424,10 @@ class FullCovarianceLikelihood(_CumsumLikelihood):
         total_sq = sum_x2.sum(dim=1)
         count = n * d
         v0 = total_sq / count - (total / count) ** 2  # [m]
+        # A length-one univariate segment (or any constant segment) has zero
+        # variance, and rounding can make it slightly negative; without a
+        # floor, log(v0) is -inf/nan and poisons Q. Same floor as before.
+        v0 = torch.clamp(v0, min=_V0_FLOOR)
 
         n0 = float(d)
         eye = torch.eye(d, dtype=sum_x.dtype, device=sum_x.device)
