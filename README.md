@@ -599,9 +599,9 @@ If you use this library in your research, please cite:
 @software{bayesian_changepoint_detection,
   title={Bayesian Changepoint Detection: A PyTorch Implementation},
   author={Kulick, Johannes and Carisimo, Esteban},
-  url={https://github.com/estcarisimo/bayesian_changepoint_detection},
-  year={2025},
-  version={1.0.0}
+  url={https://github.com/hildensia/bayesian_changepoint_detection},
+  year={2026},
+  version={1.1.0}
 }
 ```
 
