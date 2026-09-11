@@ -7,8 +7,11 @@ useful too. Conventions follow <https://agents.md>.
 
 A PyTorch implementation of two Bayesian changepoint detection algorithms:
 
-- **Offline** (`offline_changepoint_detection`): Fearnhead (2006), exact
-  posterior over changepoint locations via dynamic programming over segments.
+- **Offline** (`offline_changepoint_detection`): Fearnhead (2006), posterior
+  over changepoint locations via dynamic programming over segments. Exact
+  only without truncation; the default `truncate=-40` drops terms whose
+  log contribution falls that far below the running sum, so the returned
+  posterior is a (very close) truncated approximation.
 - **Online** (`online_changepoint_detection`): Adams & MacKay (2007), a
   recursively updated posterior over *run length* (time since the last
   changepoint).
@@ -71,9 +74,19 @@ grows the parameter vectors by one entry per timestep and `pdf` increments an
 internal counter. Re-instantiate the model before a second run; do not reuse
 one across two calls to `online_changepoint_detection`.
 
-**Everything is in log space.** Priors return log probabilities, likelihoods
-return log densities, and the recursions use `logaddexp` / `logsumexp`. Hazard
-functions are the exception: they return probabilities in `[0, 1]`.
+**Log space vs. probability space differs by algorithm.** Priors return log
+probabilities and both likelihood families return log densities. The
+*offline* recursion stays in log space throughout (`logaddexp` /
+`logsumexp`). The *online* recursion does not: it exponentiates the
+predictive densities and updates `R` and `changepoint_probs` as ordinary
+probabilities with multiplication and sums, renormalizing each step. Do not
+apply log-space assumptions to the online code.
+
+**Hazard functions return probabilities, and the API does not enforce the
+range.** `constant_hazard(lam, r)` returns `1 / lam` for any positive `lam`,
+so `lam < 1` silently yields a "probability" above 1. Callers must pass
+`lam >= 1`; if you touch this function, add validation rather than relying
+on the docstring.
 
 **Numerical precision is load-bearing.** The offline recursion accumulates
 across O(n²) terms. Do not silently downcast; note that MPS does not support
@@ -84,6 +97,26 @@ rather than calling `torch.device` or `.to()` ad hoc. A function that accepts
 both a data tensor and a model must put them on the same device — mixing them
 raises *"Expected all tensors to be on the same device"* at runtime, which the
 CPU-only CI will not catch.
+
+## Workflow: sessions, reviews, merging
+
+This project is maintained in short sessions, often with an AI agent. The
+running record lives outside the repo:
+
+- **Session log and roadmap:** the Notion page *"BCP — Bayesian Changepoint
+  Detection"* (under *Open source*). At the start of a session, read its last
+  entry under *Registro de sesiones* and compare it with the current state of
+  `master` and the open PRs before touching code. At the end, append an
+  entry: what was done, what was verified (commands and results), what is
+  pending, branch/commit/PR, and the next concrete action. Tick roadmap
+  boxes only for work that was actually verified.
+- **Every PR:** request a Copilot code review (from the *Reviewers* gear on
+  the PR page; the API request works too), address its comments or say why
+  not, and do not merge until CI and Copilot are both green. Keep PRs small
+  and single-purpose; do not mix large refactors with statistical fixes.
+- **Merging** requires write access to `hildensia/bayesian_changepoint_detection`.
+  Branch protection, repository secrets, PyPI credentials and Copilot
+  settings need the repository owner.
 
 ## Changing the math
 
