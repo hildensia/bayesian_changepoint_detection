@@ -118,11 +118,15 @@ class BaseLikelihood(ABC):
 
     def _prepare_data(self, data: torch.Tensor) -> torch.Tensor:
         """Move data to the target device, promote precision, make it 2-D."""
-        data = ensure_tensor(data, device=self.device)
         # float64 for numerically demanding cumulative statistics; MPS has no
-        # float64 support, so stay in float32 there.
-        dtype = torch.float32 if data.device.type == "mps" else torch.float64
-        data = data.to(dtype)
+        # float64 support, so stay in float32 there. Cast before moving so a
+        # float64 CPU tensor is never transferred to MPS as float64.
+        target = get_device(self.device)
+        dtype = torch.float32 if target.type == "mps" else torch.float64
+        if isinstance(data, torch.Tensor):
+            data = data.to(dtype=dtype).to(device=target)
+        else:
+            data = ensure_tensor(data, device=target).to(dtype)
         if data.dim() == 1:
             data = data.unsqueeze(1)
         return data

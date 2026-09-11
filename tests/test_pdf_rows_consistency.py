@@ -205,3 +205,27 @@ def test_statistics_cache_is_invalidated_when_model_device_changes():
     # The key records the device the statistics were prepared on, so a
     # driver that moves the model (e.g. the MPS -> CPU fallback) misses it.
     assert model._stats_key[-1] == torch.device("cpu")
+
+
+def test_impossible_entries_stay_minus_inf_in_changepoint_matrix():
+    """-inf log probabilities must not be clamped to finite extrema."""
+    from bayesian_changepoint_detection.bayesian_models import _nan_to_neg_inf
+    x = torch.tensor([0.0, float("nan"), float("-inf"), float("inf")])
+    y = _nan_to_neg_inf(x)
+    assert y[0] == 0.0
+    assert y[1] == float("-inf")
+    assert y[2] == float("-inf")
+    assert y[3] == float("inf")
+
+
+def test_prepare_data_casts_before_moving():
+    """A float64 CPU tensor given to an MPS model must be cast to float32
+    on the CPU side first (MPS rejects float64 transfers)."""
+    model = StudentT(device="cpu")
+    prepared = model._prepare_data(torch.randn(10, dtype=torch.float32))
+    assert prepared.dtype == torch.float64 and prepared.shape == (10, 1)
+    if torch.backends.mps.is_available():
+        model = StudentT(device="mps")
+        prepared = model._prepare_data(torch.randn(10, dtype=torch.float64))
+        assert prepared.dtype == torch.float32
+        assert prepared.device.type == "mps"

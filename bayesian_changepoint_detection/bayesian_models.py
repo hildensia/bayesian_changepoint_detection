@@ -14,6 +14,16 @@ from .online_likelihoods import BaseLikelihood as OnlineLikelihood
 from .offline_likelihoods import BaseLikelihood as OfflineLikelihood
 
 
+def _nan_to_neg_inf(x: torch.Tensor) -> torch.Tensor:
+    """Map NaN to -inf while leaving +/-inf untouched.
+
+    ``torch.nan_to_num`` with default ``posinf``/``neginf`` would also clamp
+    infinities to finite extrema, turning impossible (log-probability -inf)
+    entries into finite values that then take part in later recursions.
+    """
+    return torch.where(torch.isnan(x), torch.full_like(x, float('-inf')), x)
+
+
 def offline_changepoint_detection(
     data: torch.Tensor,
     prior_function: Callable[[int], float],
@@ -154,9 +164,7 @@ def offline_changepoint_detection(
 
     # First changepoint probabilities
     if n > 1:
-        Pcp[0, :] = torch.nan_to_num(
-            P[0, :n - 1] + Q[1:] + g[:n - 1] - Q[0], nan=float('-inf')
-        )
+        Pcp[0, :] = _nan_to_neg_inf(P[0, :n - 1] + Q[1:] + g[:n - 1] - Q[0])
 
     # Subsequent changepoint probabilities. For each j the inner loop over t
     # is one masked logsumexp over a [m, m] matrix M with
@@ -168,9 +176,7 @@ def offline_changepoint_detection(
         M = head.unsqueeze(1) + P[j:n - 1, j:n - 1] + Q[j + 1:].unsqueeze(0)
         mask = torch.ones(m, m, dtype=torch.bool, device=device).triu()
         M = M.masked_fill(~mask, float('-inf'))
-        Pcp[j, j:] = torch.nan_to_num(
-            torch.logsumexp(M, dim=0), nan=float('-inf')
-        )
+        Pcp[j, j:] = _nan_to_neg_inf(torch.logsumexp(M, dim=0))
 
     return Q, P, Pcp
 
