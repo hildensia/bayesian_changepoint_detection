@@ -82,10 +82,12 @@ one across two calls to `online_changepoint_detection`.
 **Log space vs. probability space differs by algorithm.** Priors return log
 probabilities and both likelihood families return log densities. The
 *offline* recursion stays in log space throughout (`logaddexp` /
-`logsumexp`). The *online* recursion does not: it exponentiates the
-predictive densities and updates `R` and `changepoint_probs` as ordinary
-probabilities with multiplication and sums, renormalizing each step. Do not
-apply log-space assumptions to the online code.
+`logsumexp`). `online_changepoint_detection` does not: it exponentiates
+the predictive densities and updates `R` and `changepoint_probs` as
+ordinary probabilities with multiplication and sums, renormalizing each
+column after recording `changepoint_probs`. (`viterbi_changepoints`, by
+contrast, keeps its `log_probs` table in log space.) Check which
+convention a function uses before editing it.
 
 **Hazard functions return probabilities, and the API does not enforce the
 range.** `constant_hazard(lam, r)` returns `1 / lam` for any positive `lam`,
@@ -124,11 +126,9 @@ For every PR:
 - Keep it small and single-purpose. Do not mix large refactors with
   statistical fixes.
 - CI must be green before merging.
-- Request whatever automated code review the repository has enabled
-  (currently GitHub Copilot code review, requested from the *Reviewers* gear
-  on the PR page or via the API). Address each comment or state in the PR
-  why it does not apply. Where that review is unavailable, a human review
-  stands in for it.
+- Request whatever automated code review the repository has enabled, or a
+  human review where none is. Address each comment or state in the PR why
+  it does not apply.
 - Merging needs write access to `hildensia/bayesian_changepoint_detection`.
   Branch protection, repository secrets, PyPI credentials and review-tool
   settings need the repository owner.
