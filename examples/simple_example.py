@@ -86,7 +86,7 @@ def plot_results(data, online_probs, offline_probs, true_changepoints):
     
     # Plot 1: Data
     plt.subplot(3, 1, 1)
-    plt.plot(data.numpy(), 'b-', alpha=0.7, label='Data')
+    plt.plot(data.cpu().numpy(), 'b-', alpha=0.7, label='Data')
     for cp in true_changepoints:
         plt.axvline(x=cp, color='r', linestyle='--', alpha=0.8, label='True changepoint' if cp == true_changepoints[0] else '')
     plt.title('Synthetic Data with Known Changepoints')
@@ -96,7 +96,7 @@ def plot_results(data, online_probs, offline_probs, true_changepoints):
     
     # Plot 2: Online detection results
     plt.subplot(3, 1, 2)
-    plt.plot(online_probs.numpy(), 'g-', label='Online changepoint probability')
+    plt.plot(online_probs.cpu().numpy(), 'g-', label='Online changepoint probability')
     for cp in true_changepoints:
         plt.axvline(x=cp, color='r', linestyle='--', alpha=0.8)
     plt.title('Online Changepoint Detection Results')
@@ -106,7 +106,7 @@ def plot_results(data, online_probs, offline_probs, true_changepoints):
     
     # Plot 3: Offline detection results
     plt.subplot(3, 1, 3)
-    plt.plot(offline_probs.numpy(), 'm-', label='Offline changepoint probability')
+    plt.plot(offline_probs.cpu().numpy(), 'm-', label='Offline changepoint probability')
     for cp in true_changepoints:
         plt.axvline(x=cp, color='r', linestyle='--', alpha=0.8)
     plt.title('Offline Changepoint Detection Results')
