@@ -69,13 +69,24 @@ class BaseLikelihood(ABC):
         Prepare per-dataset sufficient statistics.
 
         Idempotent and cheap when called repeatedly with the same tensor:
-        statistics are recomputed only when the underlying storage, shape,
-        dtype, or device of ``data`` changes.
+        statistics are recomputed only when the underlying storage, its
+        in-place mutation counter, the shape, strides, dtype, or device of
+        ``data`` change.
 
         Returns the prepared ``[T, D]`` tensor the statistics refer to.
         """
         data = self._prepare_data(data)
-        key = (data.data_ptr(), tuple(data.shape), data.dtype, data.device)
+        # ``data_ptr`` identifies storage, not contents; ``_version`` is
+        # PyTorch's per-tensor in-place mutation counter, so ``x[0] = 1``
+        # after a previous call invalidates the cached statistics.
+        key = (
+            data.data_ptr(),
+            data._version,
+            tuple(data.shape),
+            tuple(data.stride()),
+            data.dtype,
+            data.device,
+        )
         if key != self._stats_key:
             self._compute_stats(data)
             self._stats_key = key
