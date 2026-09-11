@@ -84,6 +84,11 @@ class BaseLikelihood(ABC):
         # PyTorch's per-tensor in-place mutation counter, so ``x[0] = 1``
         # after a previous call invalidates the cached statistics.
         key = self._cache_key(data)
+        if key is not None:
+            # The prepared tensor lives on the model's device; if that was
+            # changed since the statistics were computed (e.g. the driver's
+            # MPS -> CPU float64 fallback), the cache no longer applies.
+            key = key + (self.device,)
         if key is not None and key == self._stats_key:
             return self._prepared
         prepared = self._prepare_data(data)
@@ -96,9 +101,15 @@ class BaseLikelihood(ABC):
     def _cache_key(data) -> Optional[tuple]:
         if not isinstance(data, torch.Tensor):
             return None  # lists / arrays: no stable identity, always recompute
+        try:
+            version = data._version
+        except RuntimeError:
+            # Inference-mode tensors carry no version counter; treat them as
+            # uncacheable rather than failing.
+            return None
         return (
             data.data_ptr(),
-            data._version,
+            version,
             tuple(data.shape),
             tuple(data.stride()),
             data.dtype,
@@ -217,13 +228,17 @@ class StudentT(_CumsumLikelihood):
 
     def __init__(
         self,
+        device: Optional[Union[str, torch.device]] = None,
+        cache_enabled: bool = True,
+        *,
         alpha0: float = 1.0,
         beta0: float = 1.0,
         kappa0: float = 1.0,
         mu0: float = 0.0,
-        device: Optional[Union[str, torch.device]] = None,
-        cache_enabled: bool = True
     ):
+        # ``device`` and ``cache_enabled`` keep their historical positions so
+        # ``StudentT("cpu")`` still works; the prior hyperparameters are new
+        # and keyword-only.
         super().__init__(device, cache_enabled)
         self.alpha0 = alpha0
         self.beta0 = beta0

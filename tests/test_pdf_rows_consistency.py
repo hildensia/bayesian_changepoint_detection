@@ -172,3 +172,36 @@ def test_detection_passes_caller_data_unchanged_to_third_party_pdf():
     )
     assert seen and all(shape == (12,) for shape, _ in seen)
     assert all(dtype == torch.float32 for _, dtype in seen)
+
+
+def test_offline_studentt_keeps_positional_device_argument():
+    """StudentT('cpu') was valid before the prior hyperparameters existed."""
+    model = StudentT("cpu")
+    assert model.device == torch.device("cpu")
+    assert model.alpha0 == 1.0
+    with pytest.raises(TypeError):
+        StudentT(0.1, 0.01, 1.0, 0.0)  # priors are keyword-only
+
+
+def test_inference_mode_tensors_are_accepted():
+    """Inference-mode tensors have no version counter; they must still work."""
+    torch.manual_seed(0)
+    model = StudentT(device="cpu")
+    with torch.inference_mode():
+        data = torch.randn(30, dtype=torch.float64)
+        value = model.pdf(data, 3, 20)
+    assert torch.isfinite(torch.tensor(value))
+
+
+def test_statistics_cache_is_invalidated_when_model_device_changes():
+    torch.manual_seed(0)
+    data = torch.randn(30, dtype=torch.float64)
+    model = StudentT(device="cpu")
+    model.pdf_rows(data, 0)
+    prepared_before = model._prepared
+    model.device = torch.device("cpu")  # same device: cache must survive
+    model.pdf_rows(data, 0)
+    assert model._prepared is prepared_before
+    # The key records the device the statistics were prepared on, so a
+    # driver that moves the model (e.g. the MPS -> CPU fallback) misses it.
+    assert model._stats_key[-1] == torch.device("cpu")
