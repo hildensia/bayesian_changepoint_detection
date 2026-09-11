@@ -94,8 +94,10 @@ so `lam < 1` silently yields a "probability" above 1. Callers must pass
 on the docstring.
 
 **Numerical precision is load-bearing.** The offline recursion accumulates
-across O(n²) terms. Do not silently downcast; note that MPS does not support
-float64, so any float64 path needs a CPU fallback there.
+across O(n²) terms. Do not silently downcast. Before #50 the offline
+recursion ran in float32; with #50 it runs in float64 and, because MPS does
+not support float64, falls back to CPU there. Any new float64 path needs
+the same fallback.
 
 **Device handling.** Use `device.get_device()` and `device.ensure_tensor()`
 rather than calling `torch.device` or `.to()` ad hoc. A function that accepts
@@ -144,9 +146,11 @@ change one:
 3. Say plainly in the PR whether outputs change numerically, and if so whether
    detected changepoint locations move.
 
-Vectorizing is usually the right performance fix; the algorithms are O(n²) by
-nature, and the historical bottleneck has been Python-level loops rather than
-the asymptotics. Benchmark before and after, and put the numbers in the PR.
+Vectorizing is usually the right performance fix. The algorithms are O(n²)
+in the number of segments by nature; the historical bottleneck has been
+Python-level loops layered on top (per-point loops inside a segment
+likelihood turned the offline path into O(n³) before #50). Benchmark before
+and after, and put the numbers in the PR.
 
 ## References
 
@@ -158,5 +162,6 @@ the asymptotics. Benchmark before and after, and put the numbers in the PR.
   multivariate time series*. ICML. (Multivariate offline likelihoods.)
 - Murphy, K. (2007). *Conjugate Bayesian analysis of the Gaussian
   distribution*. (Normal-Gamma updates for the univariate `StudentT`
-  likelihoods; the multivariate likelihoods use Normal-Wishart conjugacy,
-  see Xuan & Murphy above and the docstrings in both likelihood modules.)
+  likelihoods and, per dimension, for `IndependentFeaturesLikelihood`;
+  `FullCovarianceLikelihood` and both `MultivariateT` classes use
+  Normal-Wishart conjugacy, see Xuan & Murphy above and the docstrings.)
