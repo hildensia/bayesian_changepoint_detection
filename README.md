@@ -241,13 +241,16 @@ partition, data = generate_mean_shift_example(3, 50)
 print(f"Generated test data: {data.shape}")
 ```
 
-Or run one of the examples:
+Or run one of the examples (they plot, so they need the `plot` extra):
 
 ```bash
-# Run example (from project root, without installation)
+pip install -e ".[plot]"
+
+# Run example from the project root
 PYTHONPATH=. python examples/simple_example.py
 
 # Run the test suite (requires the dev extra)
+pip install -e ".[dev]"
 pytest
 ```
 
@@ -295,8 +298,8 @@ mypy bayesian_changepoint_detection
    # Option 2: Ensure pytest is installed
    pip install pytest
    
-   # Option 3: Run the basic test directly
-   python test.py
+   # Option 3: Run just the basic online-detection tests
+   python -m pytest tests/test_online_detection.py
    ```
 
 2. **PyTorch installation conflicts**
@@ -508,15 +511,13 @@ See the `examples/` directory for complete examples:
 
 ### Running Tests
 
-#### Basic Tests (No pytest required)
+#### Basic Tests
 ```bash
-# Run the basic test suite directly
-python test.py
-
-# This runs simple univariate and multivariate changepoint detection tests
+# Run the basic online-detection tests (univariate and multivariate)
+python -m pytest tests/test_online_detection.py
 ```
 
-#### Full Test Suite (Requires pytest)
+#### Full Test Suite
 ```bash
 # First, install development dependencies
 pip install -e ".[dev]"

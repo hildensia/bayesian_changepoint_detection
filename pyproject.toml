@@ -51,6 +51,7 @@ dev = [
     "notebook>=6.4.0",
 ]
 plot = [
+    "numpy>=1.21.0",
     "matplotlib>=3.5.0",
     "seaborn>=0.11.0",
 ]
