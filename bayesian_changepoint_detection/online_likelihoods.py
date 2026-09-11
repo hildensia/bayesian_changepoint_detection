@@ -5,6 +5,8 @@ This module provides likelihood functions for online (sequential) changepoint de
 using PyTorch for efficient computation and GPU acceleration.
 """
 
+import math
+
 import torch
 import torch.distributions as dist
 from abc import ABC, abstractmethod
@@ -29,7 +31,22 @@ class BaseLikelihood(ABC):
     def __init__(self, device: Optional[Union[str, torch.device]] = None):
         self.device = get_device(device)
         self.t = 0  # Current time step
-    
+
+    def to(self, device: Union[str, torch.device]) -> "BaseLikelihood":
+        """
+        Move the likelihood model (and all its tensor state) to a device.
+
+        Returns self, mirroring ``torch.nn.Module.to``.
+        """
+        device = get_device(device)
+        if device == self.device:
+            return self
+        self.device = device
+        for name, value in vars(self).items():
+            if isinstance(value, torch.Tensor):
+                setattr(self, name, value.to(device))
+        return self
+
     @abstractmethod
     def pdf(self, data: torch.Tensor) -> torch.Tensor:
         """
@@ -142,19 +159,23 @@ class StudentT(BaseLikelihood):
             raise ValueError("StudentT expects scalar input data")
         
         self.t += 1
-        
+
         # Student's t-distribution parameters
         df = 2 * self.alpha
         loc = self.mu
         scale = torch.sqrt(self.beta * (self.kappa + 1) / (self.alpha * self.kappa))
-        
-        # Compute log probabilities for all run lengths
-        log_probs = torch.zeros(self.t, device=self.device, dtype=torch.float32)
-        
-        for i in range(self.t):
-            t_dist = dist.StudentT(df=df[i], loc=loc[i], scale=scale[i])
-            log_probs[i] = t_dist.log_prob(data)
-        
+
+        # Log probabilities for all run lengths at once (same formula as
+        # torch.distributions.StudentT.log_prob, vectorized over run lengths)
+        z = (data - loc) / scale
+        log_probs = (
+            torch.lgamma((df + 1) / 2)
+            - torch.lgamma(df / 2)
+            - 0.5 * torch.log(math.pi * df)
+            - torch.log(scale)
+            - ((df + 1) / 2) * torch.log1p(z ** 2 / df)
+        )
+
         return log_probs
     
     def update_theta(self, data: torch.Tensor, **kwargs) -> None:
@@ -288,38 +309,33 @@ class MultivariateT(BaseLikelihood):
             raise ValueError(f"Expected data shape [{self.dims}], got {data.shape}")
         
         self.t += 1
-        
+
         # Compute parameters for multivariate Student's t
         t_dof = self.dof - self.dims + 1
         scale_factor = (self.kappa * t_dof) / (self.kappa + 1)
-        
-        log_probs = torch.zeros(self.t, device=self.device, dtype=torch.float32)
-        
-        for i in range(self.t):
-            # Compute precision matrix (inverse of scale matrix) with regularization
-            scale_matrix = self.scale[i] / scale_factor[i]
-            # Add small regularization to ensure positive definiteness
-            reg_scale = scale_matrix + 1e-6 * torch.eye(self.dims, device=self.device, dtype=torch.float32)
-            precision = torch.inverse(reg_scale)
-            
-            # Note: PyTorch doesn't have native multivariate t-distribution,
-            # so we compute the log probability directly
-            
-            # Mahalanobis distance
-            diff = data - self.mu[i]
-            mahal_dist = torch.matmul(diff, torch.matmul(precision, diff))
-            
-            # Multivariate t log-probability (manual computation)
-            log_prob = (
-                torch.lgamma((t_dof[i] + self.dims) / 2) -
-                torch.lgamma(t_dof[i] / 2) -
-                (self.dims / 2) * torch.log(t_dof[i] * torch.pi) -
-                0.5 * torch.logdet(reg_scale) -
-                ((t_dof[i] + self.dims) / 2) * torch.log(1 + mahal_dist / t_dof[i])
-            )
-            
-            log_probs[i] = log_prob
-        
+
+        # Note: PyTorch doesn't have native multivariate t-distribution, so we
+        # compute the log probability directly — batched over all run lengths.
+        scale_matrix = self.scale / scale_factor.unsqueeze(-1).unsqueeze(-1)
+        # Add small regularization to ensure positive definiteness
+        eye = torch.eye(self.dims, device=self.device, dtype=torch.float32)
+        reg_scale = scale_matrix + 1e-6 * eye
+
+        precision = torch.linalg.inv(reg_scale)
+        logdet = torch.logdet(reg_scale)
+
+        # Mahalanobis distance for every run length
+        diff = data.unsqueeze(0) - self.mu  # [t, dims]
+        mahal_dist = torch.einsum("ti,tij,tj->t", diff, precision, diff)
+
+        log_probs = (
+            torch.lgamma((t_dof + self.dims) / 2)
+            - torch.lgamma(t_dof / 2)
+            - (self.dims / 2) * torch.log(t_dof * torch.pi)
+            - 0.5 * logdet
+            - ((t_dof + self.dims) / 2) * torch.log1p(mahal_dist / t_dof)
+        )
+
         return log_probs
     
     def update_theta(self, data: torch.Tensor, **kwargs) -> None:
