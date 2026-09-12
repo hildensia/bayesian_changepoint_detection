@@ -13,6 +13,8 @@ import matplotlib.pyplot as plt
 # Import the refactored modules
 from bayesian_changepoint_detection import (
     online_changepoint_detection,
+    changepoint_probabilities,
+    get_map_changepoints,
     get_device,
 )
 from bayesian_changepoint_detection.online_likelihoods import MultivariateT
@@ -48,24 +50,20 @@ def correlation_change_example():
     likelihood = MultivariateT(dims=2, device=device)
     
     print("Running multivariate changepoint detection...")
-    R, changepoint_probs = online_changepoint_detection(
+    R, map_run_lengths = online_changepoint_detection(
         data, hazard_func, likelihood, device=device
     )
     
-    # Extract detected changepoints
-    threshold = 0.1
-    detected = torch.where(changepoint_probs > threshold)[0]
-    print(f"Detected changepoints (threshold={threshold}): {detected.tolist()}")
+    # Segment starts implied by the MAP run-length path
+    detected = get_map_changepoints(R, min_separation=10)
+    print(f"Detected changepoints (MAP run-length path): {detected.tolist()}")
     
-    # Find significant peaks
-    peaks = []
-    for i in range(1, len(changepoint_probs) - 1):
-        if (changepoint_probs[i] > changepoint_probs[i-1] and 
-            changepoint_probs[i] > changepoint_probs[i+1] and 
-            changepoint_probs[i] > 0.05):
-            peaks.append(i)
-    
-    print(f"Detected peaks: {peaks}")
+    # Calibrated probability per position, judged `lag` observations later
+    lag = 10
+    changepoint_probs = torch.zeros(data.shape[0] + 1, device=R.device)
+    changepoint_probs[: data.shape[0] + 1 - lag] = changepoint_probabilities(R, lag=lag)
+    peaks = (torch.where(changepoint_probs[1:] > 0.5)[0] + 1).tolist()
+    print(f"Positions with P(change) > 0.5 at lag {lag}: {peaks}")
     
     # Visualization
     try:
@@ -148,24 +146,20 @@ def general_multivariate_example():
     likelihood = MultivariateT(dims=4, device=device)
     
     print("Running multivariate changepoint detection...")
-    R, changepoint_probs = online_changepoint_detection(
+    R, map_run_lengths = online_changepoint_detection(
         data, hazard_func, likelihood, device=device
     )
     
-    # Extract detected changepoints
-    threshold = 0.08
-    detected = torch.where(changepoint_probs > threshold)[0]
-    print(f"Detected changepoints (threshold={threshold}): {detected.tolist()}")
+    # Segment starts implied by the MAP run-length path
+    detected = get_map_changepoints(R, min_separation=10)
+    print(f"Detected changepoints (MAP run-length path): {detected.tolist()}")
     
-    # Find significant peaks
-    peaks = []
-    for i in range(1, len(changepoint_probs) - 1):
-        if (changepoint_probs[i] > changepoint_probs[i-1] and 
-            changepoint_probs[i] > changepoint_probs[i+1] and 
-            changepoint_probs[i] > 0.03):
-            peaks.append(i)
-    
-    print(f"Detected peaks: {peaks}")
+    # Calibrated probability per position, judged `lag` observations later
+    lag = 10
+    changepoint_probs = torch.zeros(data.shape[0] + 1, device=R.device)
+    changepoint_probs[: data.shape[0] + 1 - lag] = changepoint_probabilities(R, lag=lag)
+    peaks = (torch.where(changepoint_probs[1:] > 0.5)[0] + 1).tolist()
+    print(f"Positions with P(change) > 0.5 at lag {lag}: {peaks}")
     
     # Visualization
     try:

@@ -52,7 +52,7 @@ def benchmark_univariate(data_length=1000, num_runs=3):
         likelihood_cpu = StudentT(alpha=0.1, beta=0.01, kappa=1, mu=0, device='cpu')
         
         start_time = time.time()
-        R, changepoint_probs = online_changepoint_detection(
+        R, map_run_lengths = online_changepoint_detection(
             data_cpu.squeeze(), hazard_func, likelihood_cpu, device='cpu'
         )
         cpu_time = time.time() - start_time
@@ -82,7 +82,7 @@ def benchmark_univariate(data_length=1000, num_runs=3):
                 torch.cuda.synchronize()  # Ensure GPU is ready
             
             start_time = time.time()
-            R, changepoint_probs = online_changepoint_detection(
+            R, map_run_lengths = online_changepoint_detection(
                 data_gpu.squeeze(), hazard_func, likelihood_gpu, device='cuda'
             )
             torch.cuda.synchronize()  # Wait for GPU to finish
@@ -112,7 +112,7 @@ def benchmark_univariate(data_length=1000, num_runs=3):
         
         # Check if results are close (allowing for small numerical differences)
         cp_gpu_cpu = cp_gpu.to('cpu')
-        max_diff = torch.max(torch.abs(cp_cpu - cp_gpu_cpu)).item()
+        max_diff = torch.max(torch.abs(cp_cpu - cp_gpu_cpu).float()).item()
         print(f"Maximum difference between CPU and GPU results: {max_diff:.2e}")
         
     else:
@@ -148,7 +148,7 @@ def benchmark_multivariate(dims=5, data_length=500, num_runs=3):
         likelihood_cpu = MultivariateT(dims=dims, device='cpu')
         
         start_time = time.time()
-        R, changepoint_probs = online_changepoint_detection(
+        R, map_run_lengths = online_changepoint_detection(
             data_cpu, hazard_func, likelihood_cpu, device='cpu'
         )
         cpu_time = time.time() - start_time
@@ -177,7 +177,7 @@ def benchmark_multivariate(dims=5, data_length=500, num_runs=3):
                 torch.cuda.synchronize()
             
             start_time = time.time()
-            R, changepoint_probs = online_changepoint_detection(
+            R, map_run_lengths = online_changepoint_detection(
                 data_gpu, hazard_func, likelihood_gpu, device='cuda'
             )
             torch.cuda.synchronize()
@@ -236,7 +236,7 @@ def memory_usage_demo():
         hazard_func = partial(constant_hazard, 250)
         likelihood = StudentT(alpha=0.1, beta=0.01, kappa=1, mu=0, device='cuda')
         
-        R, changepoint_probs = online_changepoint_detection(
+        R, map_run_lengths = online_changepoint_detection(
             data.squeeze(), hazard_func, likelihood, device='cuda'
         )
         
@@ -244,7 +244,7 @@ def memory_usage_demo():
         print_memory_stats()
         
         # Clean up
-        del data, R, changepoint_probs, likelihood
+        del data, R, map_run_lengths, likelihood
         torch.cuda.empty_cache()
         
         print(f"  After cleanup:")
@@ -300,14 +300,14 @@ def device_switching_demo():
         
         # Compare results
         cp_gpu_cpu = cp_gpu.to('cpu')
-        max_diff = torch.max(torch.abs(cp_cpu - cp_gpu_cpu)).item()
+        max_diff = torch.max(torch.abs(cp_cpu - cp_gpu_cpu).float()).item()
         print(f"Maximum difference between devices: {max_diff:.2e}")
         
         # Move results back to CPU for further processing
         print("\nMoving results back to CPU...")
         final_results = {
             'R': R_gpu.to('cpu'),
-            'changepoint_probs': cp_gpu.to('cpu')
+            'map_run_lengths': cp_gpu.to('cpu')
         }
         print(f"Results device: {final_results['R'].device}")
         

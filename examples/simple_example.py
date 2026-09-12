@@ -15,6 +15,8 @@ from functools import partial
 from bayesian_changepoint_detection import (
     online_changepoint_detection,
     offline_changepoint_detection,
+    changepoint_probabilities,
+    get_map_changepoints,
     constant_hazard,
     const_prior,
     StudentT
@@ -45,15 +47,21 @@ def run_online_detection(data):
     # Set up likelihood model
     likelihood = StudentT(alpha=0.1, beta=0.01, kappa=1, mu=0)
     
-    # Run detection
-    run_length_probs, changepoint_probs = online_changepoint_detection(
-        data, hazard_func, likelihood
-    )
+    # Run detection. R[r, t] is P(run length = r | first t observations);
+    # map_run_lengths is its argmax per column and resets after a change.
+    R, map_run_lengths = online_changepoint_detection(data, hazard_func, likelihood)
+    
+    # Probability that a new segment started at t, judged 10 points later.
+    lag = 10
+    changepoint_probs = torch.zeros(len(data) + 1, device=R.device)
+    changepoint_probs[: len(data) + 1 - lag] = changepoint_probabilities(R, lag=lag)
     
     print(f"✓ Online detection completed")
-    print(f"  Max changepoint probability: {changepoint_probs.max().item():.4f}")
+    print(f"  Segment starts on the MAP path: {get_map_changepoints(R).tolist()}")
+    print(f"  Max lag-{lag} changepoint probability (t > 0): "
+          f"{changepoint_probs[1:].max().item():.4f}")
     
-    return run_length_probs, changepoint_probs
+    return R, changepoint_probs
 
 def run_offline_detection(data):
     """Run offline changepoint detection."""
@@ -96,7 +104,7 @@ def plot_results(data, online_probs, offline_probs, true_changepoints):
     
     # Plot 2: Online detection results
     plt.subplot(3, 1, 2)
-    plt.plot(online_probs.cpu().numpy(), 'g-', label='Online changepoint probability')
+    plt.plot(online_probs.cpu().numpy(), 'g-', label='Online P(change at t), lag 10')
     for cp in true_changepoints:
         plt.axvline(x=cp, color='r', linestyle='--', alpha=0.8)
     plt.title('Online Changepoint Detection Results')
@@ -138,9 +146,9 @@ def main():
     # Run offline detection
     Q, P, offline_changepoint_probs = run_offline_detection(data)
     
-    # Find detected changepoints (simple peak detection)
-    online_peaks = torch.where(online_changepoint_probs > 0.01)[0]
-    offline_peaks = torch.where(offline_changepoint_probs > 0.01)[0]
+    # Find detected changepoints (position 0 is trivially a segment start)
+    online_peaks = torch.where(online_changepoint_probs[1:] > 0.5)[0] + 1
+    offline_peaks = torch.where(offline_changepoint_probs > 0.5)[0]
     
     print(f"\nDetected changepoints:")
     print(f"  Online method: {online_peaks.tolist()[:5]}...")  # Show first 5

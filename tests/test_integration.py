@@ -7,6 +7,8 @@ import torch
 from functools import partial
 
 from bayesian_changepoint_detection import (
+    changepoint_probabilities,
+    get_map_changepoints,
     online_changepoint_detection,
     offline_changepoint_detection,
     get_device,
@@ -36,17 +38,18 @@ class TestIntegration:
         likelihood = StudentT(alpha=0.1, beta=0.01, kappa=1, mu=0, device='cpu')
         
         # Run detection
-        R, changepoint_probs = online_changepoint_detection(
+        R, map_run_lengths = online_changepoint_detection(
             data.squeeze(), hazard_func, likelihood, device='cpu'
         )
         
         # Verify outputs
         assert isinstance(R, torch.Tensor)
-        assert isinstance(changepoint_probs, torch.Tensor)
+        assert isinstance(map_run_lengths, torch.Tensor)
         assert R.shape[1] == len(data) + 1  # T+1 time steps
-        assert len(changepoint_probs) == len(data) + 1
+        assert len(map_run_lengths) == len(data) + 1
         assert torch.all(R >= 0)  # Probabilities should be non-negative
-        assert torch.all(changepoint_probs >= 0)
+        assert map_run_lengths.dtype == torch.long
+        assert torch.all(map_run_lengths >= 0)
     
     def test_basic_offline_detection_flow(self):
         """Test the complete offline detection workflow."""
@@ -84,15 +87,15 @@ class TestIntegration:
         likelihood = MultivariateT(dims=3, device='cpu')
         
         # Run detection
-        R, changepoint_probs = online_changepoint_detection(
+        R, map_run_lengths = online_changepoint_detection(
             data, hazard_func, likelihood, device='cpu'
         )
         
         # Verify outputs
         assert isinstance(R, torch.Tensor)
-        assert isinstance(changepoint_probs, torch.Tensor)
+        assert isinstance(map_run_lengths, torch.Tensor)
         assert R.shape[1] == data.shape[0] + 1
-        assert len(changepoint_probs) == data.shape[0] + 1
+        assert len(map_run_lengths) == data.shape[0] + 1
     
     def test_device_consistency(self):
         """Test that device handling is consistent throughout."""
@@ -108,13 +111,13 @@ class TestIntegration:
         hazard_func = partial(constant_hazard, 60)
         likelihood = StudentT(alpha=0.1, beta=0.01, kappa=1, mu=0, device='cuda')
         
-        R, changepoint_probs = online_changepoint_detection(
+        R, map_run_lengths = online_changepoint_detection(
             data.squeeze(), hazard_func, likelihood, device='cuda'
         )
         
         # Verify results are on GPU
         assert R.device.type == 'cuda'
-        assert changepoint_probs.device.type == 'cuda'
+        assert map_run_lengths.device.type == 'cuda'
     
     def test_backward_compatibility(self):
         """Test that the refactored code maintains backward compatibility."""
@@ -130,15 +133,13 @@ class TestIntegration:
         likelihood = StudentT(alpha=0.1, beta=0.01, kappa=1, mu=0)
         
         # This should work without specifying device explicitly
-        R, changepoint_probs = online_changepoint_detection(
+        R, map_run_lengths = online_changepoint_detection(
             data.squeeze(), hazard_func, likelihood
         )
         
         # Should produce reasonable results
         assert torch.isfinite(R).all()
-        assert torch.isfinite(changepoint_probs).all()
-        assert changepoint_probs.max() <= 1.0
-        assert changepoint_probs.min() >= 0.0
+        assert torch.all(map_run_lengths.cpu() <= torch.arange(len(map_run_lengths)))
     
     def test_numerical_stability(self):
         """Test numerical stability with extreme parameter values."""
@@ -150,12 +151,12 @@ class TestIntegration:
         likelihood = StudentT(alpha=0.001, beta=0.001, kappa=0.1, mu=0)
         
         # Should not produce NaN or infinite values
-        R, changepoint_probs = online_changepoint_detection(
+        R, map_run_lengths = online_changepoint_detection(
             data, hazard_func, likelihood
         )
         
         assert torch.isfinite(R).all()
-        assert torch.isfinite(changepoint_probs).all()
+        assert torch.all(map_run_lengths >= 0)
     
     def test_empty_and_small_data(self):
         """Test handling of edge cases with small datasets."""
@@ -166,13 +167,13 @@ class TestIntegration:
         likelihood = StudentT(alpha=0.1, beta=0.01, kappa=1, mu=0)
         
         # Should handle gracefully
-        R, changepoint_probs = online_changepoint_detection(
+        R, map_run_lengths = online_changepoint_detection(
             data, hazard_func, likelihood
         )
         
-        assert len(changepoint_probs) == 3  # len(data) + 1
+        assert len(map_run_lengths) == 3  # len(data) + 1
         assert torch.isfinite(R).all()
-        assert torch.isfinite(changepoint_probs).all()
+        assert torch.all(map_run_lengths >= 0)
     
     def test_performance_scaling(self):
         """Test that performance scales reasonably with data size."""
@@ -193,7 +194,7 @@ class TestIntegration:
             
             # Time the detection
             start_time = time.time()
-            R, changepoint_probs = online_changepoint_detection(
+            R, map_run_lengths = online_changepoint_detection(
                 data.squeeze(), hazard_func, likelihood
             )
             elapsed = time.time() - start_time
@@ -219,12 +220,12 @@ class TestPerformanceIntegration:
         likelihood = StudentT(alpha=0.1, beta=0.01, kappa=1, mu=0)
         
         # Should complete without memory issues
-        R, changepoint_probs = online_changepoint_detection(
+        R, map_run_lengths = online_changepoint_detection(
             data.squeeze(), hazard_func, likelihood
         )
         
         assert torch.isfinite(R).all()
-        assert torch.isfinite(changepoint_probs).all()
+        assert torch.all(map_run_lengths >= 0)
     
     def test_large_dataset_multivariate(self):
         """Test multivariate detection on larger dataset."""
@@ -237,12 +238,12 @@ class TestPerformanceIntegration:
         likelihood = MultivariateT(dims=5)
         
         # Should complete without memory issues
-        R, changepoint_probs = online_changepoint_detection(
+        R, map_run_lengths = online_changepoint_detection(
             data, hazard_func, likelihood
         )
         
         assert torch.isfinite(R).all()
-        assert torch.isfinite(changepoint_probs).all()
+        assert torch.all(map_run_lengths >= 0)
 
 
 class TestRegressionAgainstOriginal:
@@ -257,27 +258,30 @@ class TestRegressionAgainstOriginal:
         data = torch.cat([segment1, segment2, segment3])
         
         # Add small amount of noise
+        torch.manual_seed(0)
         data += torch.randn_like(data) * 0.1
         
         # Run detection with more sensitive parameters
         hazard_func = partial(constant_hazard, 50)  # More frequent changepoints expected
         likelihood = StudentT(alpha=0.01, beta=0.01, kappa=1, mu=0)  # More sensitive
         
-        R, changepoint_probs = online_changepoint_detection(
+        R, map_run_lengths = online_changepoint_detection(
             data, hazard_func, likelihood
         )
         
-        # Should detect changepoints around positions 50 and 100
-        # The algorithm always has changepoint_probs[0] = 1.0 by definition
-        # So we look for significant increases in changepoint probability
-        
-        # Find indices with high changepoint probability (excluding index 0)
-        high_prob_indices = torch.where(changepoint_probs[1:] > 0.01)[0] + 1
+        # Should detect changepoints around positions 50 and 100: the MAP
+        # run length resets there, and the lagged probability peaks there.
+        detected = get_map_changepoints(R, min_separation=10).tolist()
+        probs = changepoint_probabilities(R, lag=5)
+        high_prob_indices = (torch.where(probs[1:] > 0.5)[0] + 1).tolist()
         
         # Check if we detected changepoints near positions 50 and 100
-        detected_near_50 = any(45 <= idx <= 55 for idx in high_prob_indices)
-        detected_near_100 = any(95 <= idx <= 105 for idx in high_prob_indices)
+        detected_near_50 = any(45 <= idx <= 55 for idx in detected + high_prob_indices)
+        detected_near_100 = any(95 <= idx <= 105 for idx in detected + high_prob_indices)
         
         # Should detect at least one of the changepoints
-        assert detected_near_50 or detected_near_100, f"No changepoints detected near 50 or 100. High prob indices: {high_prob_indices.tolist()[:10]}..."
+        assert detected_near_50 and detected_near_100, (
+            f"Expected changepoints near 50 and 100; MAP starts {detected}, "
+            f"lag-5 probability > 0.5 at {high_prob_indices}"
+        )
         

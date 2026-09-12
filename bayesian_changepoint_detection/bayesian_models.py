@@ -208,33 +208,55 @@ def online_changepoint_detection(
     Returns
     -------
     R : torch.Tensor
-        Run length probability matrix. R[r, t] is the probability at time t
-        that the current run length is r. Shape: [T+1, T+1].
-    changepoint_probs : torch.Tensor
-        Probability of changepoint at each time step. Shape: [T+1].
+        Run length posterior. ``R[r, t]`` is ``P(run length = r | x_0..x_{t-1})``,
+        i.e. column ``t`` is the posterior after ``t`` observations; column 0
+        is the prior (all mass at run length 0). Shape: ``[T+1, T+1]``.
+    map_run_lengths : torch.Tensor
+        ``argmax`` of each column of ``R``: the most likely run length after
+        ``t`` observations. Shape: ``[T+1]``, dtype ``long``. A changepoint
+        shows up as a drop in this sequence; ``get_map_changepoints`` turns
+        the drops into segment start indices, and
+        ``changepoint_probabilities`` gives a calibrated probability per
+        position at a chosen detection lag.
         
     Examples
     --------
     >>> import torch
     >>> from functools import partial
     >>> from bayesian_changepoint_detection import (
-    ...     online_changepoint_detection, constant_hazard, StudentT
+    ...     online_changepoint_detection, constant_hazard, StudentT,
+    ...     get_map_changepoints, changepoint_probabilities,
     ... )
     >>> 
-    >>> data = torch.randn(100)
-    >>> hazard_func = partial(constant_hazard, 250)  # Expected run length = 250
-    >>> likelihood = StudentT(alpha=0.1, beta=0.01, kappa=1, mu=0)
-    >>> R, changepoint_probs = online_changepoint_detection(data, hazard_func, likelihood)
-    >>> 
-    >>> # Detect changepoints with probability > 0.5
-    >>> detected = torch.where(changepoint_probs > 0.5)[0]
-    >>> print(f"Changepoints detected at: {detected}")
+    >>> _ = torch.manual_seed(0)
+    >>> data = torch.cat([torch.randn(80), torch.randn(80) + 5])
+    >>> hazard_func = partial(constant_hazard, 100)  # Expected run length = 100
+    >>> likelihood = StudentT(alpha=0.1, beta=0.01, kappa=1, mu=0, device="cpu")
+    >>> R, map_run_lengths = online_changepoint_detection(
+    ...     data, hazard_func, likelihood, device="cpu"
+    ... )
+    >>> get_map_changepoints(R)
+    tensor([80])
+    >>> changepoint_probabilities(R, lag=10)[80] > 0.85
+    tensor(True)
     
     Notes
     -----
     This algorithm has O(T^2) time complexity but is naturally online and can
     process streaming data. The run length distribution is normalized at each
     step for numerical stability.
+
+    **Why the second return value is a run length and not a probability.**
+    Under the Adams & MacKay recursion the posterior probability of run
+    length 0 after each observation, ``R[0, t]``, is the hazard evaluated
+    under the *previous* run-length distribution; with a constant hazard it
+    is identically ``1/lam`` and carries no information about the data. The
+    evidence for a changepoint at position ``tau`` accumulates in the
+    following columns as mass at run length ``k`` in column ``tau + k``.
+    Versions 1.0.x returned the un-normalized ``R[0, t]`` under the name
+    ``changepoint_probs``; that quantity could not detect changepoints. This
+    version restores the pre-1.0 return value (the MAP run length) and adds
+    ``changepoint_probabilities`` for the lagged probability.
     
     References
     ----------
@@ -259,10 +281,6 @@ def online_changepoint_detection(
     # Initialize run length probability matrix
     R = torch.zeros(T + 1, T + 1, device=device, dtype=torch.float32)
     R[0, 0] = 1.0  # Initially, run length is 0 with probability 1
-    
-    # Track changepoint probabilities (probability of changepoint at each time)
-    changepoint_probs = torch.zeros(T + 1, device=device, dtype=torch.float32)
-    changepoint_probs[0] = 1.0  # Changepoint at time 0 by definition
     
     # Process each data point sequentially
     for t in range(T):
@@ -292,9 +310,6 @@ def online_changepoint_detection(
         # R[0, t+1] = sum_r R[r, t] * p(x_t | r) * H(r)
         R[0, t + 1] = torch.sum(R[0:t + 1, t] * pred_probs * H)
         
-        # Store changepoint probability for this time step
-        changepoint_probs[t + 1] = R[0, t + 1].clone()
-        
         # Normalize run length probabilities for numerical stability
         total_prob = torch.sum(R[:, t + 1])
         if total_prob > 0:
@@ -303,49 +318,112 @@ def online_changepoint_detection(
         # Update likelihood model parameters with new observation
         likelihood_model.update_theta(x, t=t)
     
-    return R, changepoint_probs
+    map_run_lengths = torch.argmax(R, dim=0)
+    return R, map_run_lengths
 
 
-def get_map_changepoints(
-    R: torch.Tensor, 
-    threshold: float = 0.5
-) -> torch.Tensor:
+def changepoint_probabilities(R: torch.Tensor, lag: int = 10) -> torch.Tensor:
     """
-    Extract Maximum A Posteriori (MAP) changepoint estimates.
-    
+    Probability that a new segment started at each position, judged ``lag``
+    observations later.
+
+    ``result[tau] = R[lag, tau + lag]``: the posterior probability, after
+    observing ``x_0 .. x_{tau+lag-1}``, that the current run length is exactly
+    ``lag``, which is the event "the segment containing the latest point began
+    at ``tau``". This is the quantity the original notebook plotted as
+    ``R[Nw, Nw:]`` and the natural online detector with a fixed decision delay.
+
     Parameters
     ----------
     R : torch.Tensor
-        Run length probability matrix from online_changepoint_detection.
-    threshold : float, optional
-        Probability threshold for declaring a changepoint (default: 0.5).
-        
+        Run length posterior from ``online_changepoint_detection``.
+    lag : int, optional
+        Detection delay in observations (default 10). ``lag=0`` gives the
+        run-length-0 posterior, which under a constant hazard equals the hazard
+        rate for every ``tau >= 1`` (and 1 at ``tau = 0``, the prior) and is
+        therefore uninformative; use ``lag >= 1``.
+
     Returns
     -------
     torch.Tensor
-        Indices of detected changepoints.
-        
+        Shape ``[T + 1 - lag]``; entry ``tau`` refers to data index ``tau``.
+        The last ``lag`` positions cannot be judged yet and are not returned.
+
     Examples
     --------
-    >>> R, changepoint_probs = online_changepoint_detection(data, hazard_func, likelihood)
-    >>> changepoints = get_map_changepoints(R, threshold=0.3)
+    >>> probs = changepoint_probabilities(R, lag=10)
+    >>> detected = torch.where(probs > 0.5)[0]
     """
-    # Get the most likely run length at each time step
+    if lag < 0 or lag >= R.shape[0]:
+        raise ValueError(f"lag must be in [0, {R.shape[0] - 1}], got {lag}")
+    n_cols = R.shape[1]
+    return R[lag, lag:n_cols]
+
+
+def get_map_changepoints(
+    R: torch.Tensor,
+    threshold: Optional[float] = None,
+    min_separation: int = 0,
+) -> torch.Tensor:
+    """
+    Segment start indices implied by the MAP run-length path.
+
+    After ``t`` observations the MAP run length ``r_t = argmax R[:, t]`` says
+    the current segment began at data index ``t - r_t``. Whenever that implied
+    start moves forward (the MAP run length drops), a changepoint is
+    reported at the new start. This is the classic BOCPD decision rule and is
+    what the pre-1.0 versions of this library exposed as ``maxes``.
+
+    Parameters
+    ----------
+    R : torch.Tensor
+        Run length posterior from ``online_changepoint_detection``.
+    threshold : float, optional
+        Deprecated and ignored. Earlier versions thresholded ``R[0, :]``, which
+        is not a changepoint signal (see ``online_changepoint_detection``).
+        For a thresholded probability use ``changepoint_probabilities``.
+    min_separation : int, optional
+        When the posterior is split between two nearby starts the MAP path can
+        flip between them and both get reported. Starts closer than this many
+        observations to an earlier reported start are dropped (default 0:
+        report every distinct start).
+
+    Returns
+    -------
+    torch.Tensor
+        Sorted data indices at which a new segment starts (``long``). Index 0
+        is never reported.
+
+    Examples
+    --------
+    >>> R, map_run_lengths = online_changepoint_detection(data, hazard_func, likelihood)
+    >>> get_map_changepoints(R)
+    """
+    if threshold is not None:
+        warnings.warn(
+            "get_map_changepoints(threshold=...) is ignored: R[0, :] is not a "
+            "changepoint probability. Use changepoint_probabilities(R, lag) "
+            "for a thresholded detector.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+    n_cols = R.shape[1]
     map_run_lengths = torch.argmax(R, dim=0)
-    
-    # Changepoints occur when run length drops to 0
-    changepoint_mask = (map_run_lengths == 0)
-    
-    # Also check direct changepoint probabilities if available
-    if R.shape[0] > 1:
-        changepoint_probs = R[0, :]
-        high_prob_mask = (changepoint_probs > threshold)
-        changepoint_mask = changepoint_mask | high_prob_mask
-    
-    # Return indices of changepoints (excluding the first time point)
-    changepoints = torch.where(changepoint_mask[1:])[0] + 1
-    
-    return changepoints
+    columns = torch.arange(n_cols, device=R.device)
+    segment_start = columns - map_run_lengths  # implied start after t obs
+    # A changepoint is a forward move of the implied start. Report each
+    # distinct start once, at the first column that implies it.
+    moved = torch.zeros(n_cols, dtype=torch.bool, device=R.device)
+    moved[1:] = segment_start[1:] > segment_start[:-1]
+    starts = segment_start[moved]
+    starts = torch.unique(starts[starts > 0])
+    if min_separation > 0 and starts.numel() > 1:
+        kept = [starts[0]]
+        for candidate in starts[1:]:
+            if candidate - kept[-1] >= min_separation:
+                kept.append(candidate)
+        starts = torch.stack(kept)
+    return starts
 
 
 def compute_run_length_posterior(
