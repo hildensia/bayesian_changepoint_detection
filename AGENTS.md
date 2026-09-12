@@ -74,6 +74,14 @@ incompatible. Always import them module-qualified
   predictive densities, one per possible run length. `update_theta(data)` then
   advances the model's internal parameter set.
 
+**The online detector's second return value is the MAP run length, not a
+probability.** `R[0, t]` (run length 0) equals the hazard under a constant
+hazard and cannot detect anything; a change at `t` appears as mass at run
+length `k` in column `t + k`. Use `get_map_changepoints(R)` or
+`changepoint_probabilities(R, lag)`; never threshold `R[0, :]`. Versions
+1.0.x returned un-normalized `R[0, t]` as `changepoint_probs`; that output
+was removed in 1.1.0.
+
 **Online likelihood objects are stateful and single-use.** `update_theta`
 grows the parameter vectors by one entry per timestep and `pdf` increments an
 internal counter. Re-instantiate the model before a second run; do not reuse
@@ -83,9 +91,8 @@ one across two calls to `online_changepoint_detection`.
 probabilities and both likelihood families return log densities. The
 *offline* recursion stays in log space throughout (`logaddexp` /
 `logsumexp`). `online_changepoint_detection` does not: it exponentiates
-the predictive densities and updates `R` and `changepoint_probs` as
-ordinary probabilities with multiplication and sums, renormalizing each
-column after recording `changepoint_probs`. (`viterbi_changepoints`, by
+the predictive densities and updates `R` as ordinary probabilities with
+multiplication and sums, renormalizing each column. (`viterbi_changepoints`, by
 contrast, keeps its `log_probs` table in log space.) Check which
 convention a function uses before editing it.
 

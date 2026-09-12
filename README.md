@@ -194,7 +194,9 @@ The library provides GPU acceleration for significant performance improvements. 
 ```python
 import torch
 from functools import partial
-from bayesian_changepoint_detection import online_changepoint_detection, constant_hazard
+from bayesian_changepoint_detection import (
+    online_changepoint_detection, constant_hazard, get_map_changepoints,
+)
 from bayesian_changepoint_detection.online_likelihoods import StudentT
 
 # Automatic device selection (chooses GPU if available)
@@ -208,11 +210,9 @@ hazard_func = partial(constant_hazard, 250)
 likelihood = StudentT(alpha=0.1, beta=0.01, device=device)
 
 # Run detection on GPU
-run_length_probs, changepoint_probs = online_changepoint_detection(
-    data, hazard_func, likelihood
-)
+R, map_run_lengths = online_changepoint_detection(data, hazard_func, likelihood)
 
-print("Detected changepoints:", torch.where(changepoint_probs > 0.5)[0])
+print("Detected changepoints:", get_map_changepoints(R))
 ```
 
 **Performance Benefits:**
@@ -341,8 +341,10 @@ import torch
 from functools import partial
 from bayesian_changepoint_detection import (
     online_changepoint_detection,
+    changepoint_probabilities,
+    get_map_changepoints,
     constant_hazard,
-    StudentT
+    StudentT,
 )
 
 # Generate sample data
@@ -358,12 +360,22 @@ hazard_func = partial(constant_hazard, 250)  # Expected run length of 250
 likelihood = StudentT(alpha=0.1, beta=0.01, kappa=1, mu=0)
 
 # Run online changepoint detection
-run_length_probs, changepoint_probs = online_changepoint_detection(
-    data, hazard_func, likelihood
-)
+R, map_run_lengths = online_changepoint_detection(data, hazard_func, likelihood)
 
-print("Detected changepoints at:", torch.where(changepoint_probs > 0.5)[0])
+# R[r, t] is P(run length = r | first t observations). The most likely run
+# length resets to ~1 right after a change, which is what the detector reads:
+print("Segment starts (MAP run-length path):", get_map_changepoints(R))
+
+# Or a calibrated probability per position, judged `lag` observations later:
+probs = changepoint_probabilities(R, lag=10)     # probs[t] refers to data index t
+print("P(change at t) > 0.5 at:", torch.where(probs[1:] > 0.5)[0] + 1)
 ```
+
+Why not simply threshold `R[0, :]`? Under a constant hazard the posterior
+probability of run length 0 is the hazard rate at every step, whatever the
+data say; the evidence for a change at `t` shows up in the *following*
+columns as mass at run length `k` in column `t + k`. `changepoint_probabilities`
+reads exactly that.
 
 ### Offline Changepoint Detection
 
@@ -405,9 +417,7 @@ likelihood = StudentT(device='cuda')  # Use GPU
 data_gpu = data.to('cuda')
 
 # All computations will run on GPU
-run_length_probs, changepoint_probs = online_changepoint_detection(
-    data_gpu, hazard_func, likelihood
-)
+R, map_run_lengths = online_changepoint_detection(data_gpu, hazard_func, likelihood)
 ```
 
 ### Multivariate Data
@@ -427,9 +437,8 @@ data = torch.cat([
 likelihood = MultivariateT(dims=dims)
 
 # Run detection
-run_length_probs, changepoint_probs = online_changepoint_detection(
-    data, hazard_func, likelihood
-)
+R, map_run_lengths = online_changepoint_detection(data, hazard_func, likelihood)
+print(get_map_changepoints(R))
 ```
 
 ## Mathematical Background

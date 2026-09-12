@@ -14,6 +14,8 @@ import matplotlib.pyplot as plt
 from bayesian_changepoint_detection import (
     online_changepoint_detection,
     offline_changepoint_detection,
+    changepoint_probabilities,
+    get_map_changepoints,
     get_device,
     get_device_info,
 )
@@ -66,24 +68,21 @@ def main():
     online_likelihood = StudentT(alpha=0.1, beta=0.01, kappa=1, mu=0, device=device)
     
     print("Running online changepoint detection...")
-    R, changepoint_probs = online_changepoint_detection(
+    R, map_run_lengths = online_changepoint_detection(
         data.squeeze(), hazard_func, online_likelihood, device=device
     )
     
-    # Extract detected changepoints
-    threshold = 0.1
-    detected_online = torch.where(changepoint_probs > threshold)[0]
-    print(f"Detected changepoints (threshold={threshold}): {detected_online.tolist()}")
+    # Segment starts implied by the MAP run-length path
+    detected_online = get_map_changepoints(R, min_separation=10)
+    print(f"Detected changepoints (MAP run-length path): {detected_online.tolist()}")
     
-    # Find peaks in changepoint probabilities
-    peaks = []
-    for i in range(1, len(changepoint_probs) - 1):
-        if (changepoint_probs[i] > changepoint_probs[i-1] and 
-            changepoint_probs[i] > changepoint_probs[i+1] and 
-            changepoint_probs[i] > 0.05):
-            peaks.append(i)
-    
-    print(f"Detected peaks in changepoint probabilities: {peaks}")
+    # Calibrated probability per position, judged `lag` observations later
+    lag = 10
+    changepoint_probs = torch.zeros(len(data) + 1, device=R.device)
+    changepoint_probs[: len(data) + 1 - lag] = changepoint_probabilities(R, lag=lag)
+    threshold = 0.5
+    peaks = (torch.where(changepoint_probs[1:] > threshold)[0] + 1).tolist()
+    print(f"Positions with P(change) > {threshold} at lag {lag}: {peaks}")
     print()
     
     # Example 2: Offline Changepoint Detection
@@ -137,7 +136,7 @@ def main():
             axes[0].legend()
         
         # Plot online detection results
-        axes[1].plot(changepoint_probs.cpu().numpy(), 'g-', linewidth=2)
+        axes[1].plot(changepoint_probs.cpu().numpy(), 'g-', linewidth=2)  # lag-10 P(change at t)
         axes[1].set_title('Online Changepoint Detection Probabilities')
         axes[1].set_ylabel('Probability')
         axes[1].grid(True, alpha=0.3)

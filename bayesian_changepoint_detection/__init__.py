@@ -15,7 +15,12 @@ except PackageNotFoundError:  # running from a source tree without an install
     __version__ = "unknown"
 
 from .device import get_device, to_tensor, ensure_tensor, get_device_info
-from .bayesian_models import online_changepoint_detection, offline_changepoint_detection
+from .bayesian_models import (
+    online_changepoint_detection,
+    offline_changepoint_detection,
+    changepoint_probabilities,
+    get_map_changepoints,
+)
 from .hazard_functions import constant_hazard
 from .priors import const_prior, geometric_prior, negative_binomial_prior
 from .online_likelihoods import StudentT, MultivariateT
@@ -30,6 +35,8 @@ __all__ = [
     'get_device_info',
     'online_changepoint_detection',
     'offline_changepoint_detection',
+    'changepoint_probabilities',
+    'get_map_changepoints',
     'constant_hazard',
     'const_prior',
     'geometric_prior',
