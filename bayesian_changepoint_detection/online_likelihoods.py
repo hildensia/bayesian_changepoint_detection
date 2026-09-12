@@ -235,7 +235,11 @@ class MultivariateT(BaseLikelihood):
     mu : torch.Tensor or None, optional
         Prior mean vector (default: zero vector).
     scale : torch.Tensor or None, optional
-        Prior scale matrix for Wishart distribution (default: identity matrix).
+        Prior scale matrix ``W`` of the Wishart distribution on the precision
+        (default: ``I / dof``, which gives a prior mean precision of ``I``,
+        i.e. unit prior covariance). Note this is a precision-side quantity:
+        the posterior predictive covariance is proportional to ``W^{-1}``, so
+        to encode a prior covariance ``C`` pass ``scale = inv(C) / dof``.
     device : str, torch.device, or None, optional
         Device to place tensors on.
         
@@ -274,7 +278,10 @@ class MultivariateT(BaseLikelihood):
         else:
             mu = ensure_tensor(mu, device=self.device)
         if scale is None:
-            scale = torch.eye(dims, device=self.device, dtype=torch.float32)
+            # Unit prior covariance: E[precision] = dof * W = I  =>  W = I / dof.
+            # (The pre-1.0 code used W = I with the same intent, which actually
+            # encodes a prior covariance of I / dof and is too tight for D >> 1.)
+            scale = torch.eye(dims, device=self.device, dtype=torch.float32) / dof
         else:
             scale = ensure_tensor(scale, device=self.device)
         
@@ -310,19 +317,20 @@ class MultivariateT(BaseLikelihood):
         
         self.t += 1
 
-        # Compute parameters for multivariate Student's t
+        # Posterior predictive of the Normal-Wishart model (Murphy 2007,
+        # "Conjugate Bayesian analysis of the Gaussian distribution", eq. 258):
+        #   x ~ t_{nu - D + 1}(mu, W^{-1} (kappa + 1) / (kappa (nu - D + 1)))
+        # where ``self.scale`` is the Wishart scale matrix W on the *precision*
+        # (the same parametrization ``update_theta`` maintains, and the one the
+        # original NumPy implementation used). The t-distribution's shape
+        # matrix is therefore W^{-1} / scale_factor, and its precision is
+        # W * scale_factor, which needs no matrix inverse at all.
         t_dof = self.dof - self.dims + 1
         scale_factor = (self.kappa * t_dof) / (self.kappa + 1)
 
-        # Note: PyTorch doesn't have native multivariate t-distribution, so we
-        # compute the log probability directly — batched over all run lengths.
-        scale_matrix = self.scale / scale_factor.unsqueeze(-1).unsqueeze(-1)
-        # Add small regularization to ensure positive definiteness
-        eye = torch.eye(self.dims, device=self.device, dtype=torch.float32)
-        reg_scale = scale_matrix + 1e-6 * eye
-
-        precision = torch.linalg.inv(reg_scale)
-        logdet = torch.logdet(reg_scale)
+        precision = self.scale * scale_factor.unsqueeze(-1).unsqueeze(-1)
+        # log|shape| = -log|W| - D log(scale_factor)
+        logdet = -torch.logdet(self.scale) - self.dims * torch.log(scale_factor)
 
         # Mahalanobis distance for every run length
         diff = data.unsqueeze(0) - self.mu  # [t, dims]

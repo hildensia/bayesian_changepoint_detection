@@ -53,15 +53,16 @@ def test_multivariate_t_matches_scipy_per_run_length(seed, dims):
     x = data[-1]
     got = model.pdf(x).double()
 
-    # Independent reference: one scipy evaluation per run length, using the
-    # same posterior-predictive parametrization as the implementation
-    # (Murphy 2007, Normal-Wishart posterior predictive).
+    # Independent reference: one scipy evaluation per run length using the
+    # Normal-Wishart posterior predictive (Murphy 2007, eq. 258):
+    # t_{nu-D+1}(mu, W^{-1} (kappa+1) / (kappa (nu-D+1))), where ``model.scale``
+    # is the Wishart scale W on the precision.
     expected = []
     for r in range(model.mu.shape[0]):
         t_dof = float(model.dof[r] - dims + 1)
-        scale_factor = float(model.kappa[r] * t_dof / (model.kappa[r] + 1))
-        shape = (model.scale[r] / scale_factor).double().numpy()
-        shape = shape + 1e-6 * np.eye(dims)  # same regularization as pdf()
+        shape = np.linalg.inv(model.scale[r].double().numpy()) * (
+            float(model.kappa[r]) + 1
+        ) / (float(model.kappa[r]) * t_dof)
         expected.append(
             multivariate_t(loc=model.mu[r].double().numpy(), shape=shape, df=t_dof)
             .logpdf(x.double().numpy())
@@ -70,3 +71,39 @@ def test_multivariate_t_matches_scipy_per_run_length(seed, dims):
 
     assert got.shape == expected.shape
     assert torch.allclose(got, expected, atol=1e-4, rtol=1e-4)
+
+
+def test_multivariate_run_length_posterior_matches_independent_reference():
+    """End-to-end: the run-length posterior produced with MultivariateT must
+    match a NumPy/scipy implementation of the Normal-Wishart BOCPD recursion
+    written directly from Murphy (2007). Before the predictive fix the MAP
+    path collapsed to run lengths 1-3 on stationary data."""
+    from functools import partial
+
+    from bayesian_changepoint_detection import (
+        constant_hazard, online_changepoint_detection,
+    )
+    from tests._reference_bocpd import reference_mv_bocpd
+
+    rng = np.random.default_rng(0)
+    dims = 3
+    X = np.concatenate([rng.normal(0, 1, (30, dims)), rng.normal(3, 1, (30, dims))])
+    expected = reference_mv_bocpd(
+        X, lam=40, dof0=dims + 1, kappa0=1.0, mu0=np.zeros(dims),
+        W0=np.eye(dims) / (dims + 1),  # the library default: unit prior covariance
+    )
+    R, _ = online_changepoint_detection(
+        torch.tensor(X, dtype=torch.float32),
+        partial(constant_hazard, 40, device="cpu"),
+        MultivariateT(dims=dims, device="cpu"),
+        device="cpu",
+    )
+    assert np.abs(R.numpy() - expected).max() < 1e-3
+    assert np.array_equal(R.numpy().argmax(axis=0), expected.argmax(axis=0))
+
+
+def test_default_multivariate_prior_has_unit_covariance():
+    """E[precision] = dof * W must be the identity by default."""
+    dims = 4
+    model = MultivariateT(dims=dims, device="cpu")
+    assert torch.allclose(model.dof0 * model.scale0, torch.eye(dims))
