@@ -236,10 +236,10 @@ class MultivariateT(BaseLikelihood):
         Prior mean vector (default: zero vector).
     scale : torch.Tensor or None, optional
         Prior scale matrix ``W`` of the Wishart distribution on the precision
-        (default: identity). The prior mean of the precision is ``dof * W``,
-        so the identity corresponds to unit prior covariance. Note this is a
-        precision-side quantity: the posterior predictive covariance is
-        proportional to ``W^{-1}``.
+        (default: ``I / dof``, which gives a prior mean precision of ``I``,
+        i.e. unit prior covariance). Note this is a precision-side quantity:
+        the posterior predictive covariance is proportional to ``W^{-1}``, so
+        to encode a prior covariance ``C`` pass ``scale = inv(C) / dof``.
     device : str, torch.device, or None, optional
         Device to place tensors on.
         
@@ -278,7 +278,10 @@ class MultivariateT(BaseLikelihood):
         else:
             mu = ensure_tensor(mu, device=self.device)
         if scale is None:
-            scale = torch.eye(dims, device=self.device, dtype=torch.float32)
+            # Unit prior covariance: E[precision] = dof * W = I  =>  W = I / dof.
+            # (The pre-1.0 code used W = I with the same intent, which actually
+            # encodes a prior covariance of I / dof and is too tight for D >> 1.)
+            scale = torch.eye(dims, device=self.device, dtype=torch.float32) / dof
         else:
             scale = ensure_tensor(scale, device=self.device)
         

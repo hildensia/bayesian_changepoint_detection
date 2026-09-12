@@ -89,7 +89,8 @@ def test_multivariate_run_length_posterior_matches_independent_reference():
     dims = 3
     X = np.concatenate([rng.normal(0, 1, (30, dims)), rng.normal(3, 1, (30, dims))])
     expected = reference_mv_bocpd(
-        X, lam=40, dof0=dims + 1, kappa0=1.0, mu0=np.zeros(dims), W0=np.eye(dims)
+        X, lam=40, dof0=dims + 1, kappa0=1.0, mu0=np.zeros(dims),
+        W0=np.eye(dims) / (dims + 1),  # the library default: unit prior covariance
     )
     R, _ = online_changepoint_detection(
         torch.tensor(X, dtype=torch.float32),
@@ -99,3 +100,10 @@ def test_multivariate_run_length_posterior_matches_independent_reference():
     )
     assert np.abs(R.numpy() - expected).max() < 1e-3
     assert np.array_equal(R.numpy().argmax(axis=0), expected.argmax(axis=0))
+
+
+def test_default_multivariate_prior_has_unit_covariance():
+    """E[precision] = dof * W must be the identity by default."""
+    dims = 4
+    model = MultivariateT(dims=dims, device="cpu")
+    assert torch.allclose(model.dof0 * model.scale0, torch.eye(dims))
