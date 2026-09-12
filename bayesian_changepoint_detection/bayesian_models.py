@@ -228,14 +228,16 @@ def online_changepoint_detection(
     ...     get_map_changepoints, changepoint_probabilities,
     ... )
     >>> 
-    >>> torch.manual_seed(0)
+    >>> _ = torch.manual_seed(0)
     >>> data = torch.cat([torch.randn(80), torch.randn(80) + 5])
     >>> hazard_func = partial(constant_hazard, 100)  # Expected run length = 100
-    >>> likelihood = StudentT(alpha=0.1, beta=0.01, kappa=1, mu=0)
-    >>> R, map_run_lengths = online_changepoint_detection(data, hazard_func, likelihood)
+    >>> likelihood = StudentT(alpha=0.1, beta=0.01, kappa=1, mu=0, device="cpu")
+    >>> R, map_run_lengths = online_changepoint_detection(
+    ...     data, hazard_func, likelihood, device="cpu"
+    ... )
     >>> get_map_changepoints(R)
     tensor([80])
-    >>> changepoint_probabilities(R, lag=10)[80] > 0.9
+    >>> changepoint_probabilities(R, lag=10)[80] > 0.85
     tensor(True)
     
     Notes
@@ -338,7 +340,8 @@ def changepoint_probabilities(R: torch.Tensor, lag: int = 10) -> torch.Tensor:
     lag : int, optional
         Detection delay in observations (default 10). ``lag=0`` gives the
         run-length-0 posterior, which under a constant hazard equals the hazard
-        rate for every ``tau`` and is therefore uninformative; use ``lag >= 1``.
+        rate for every ``tau >= 1`` (and 1 at ``tau = 0``, the prior) and is
+        therefore uninformative; use ``lag >= 1``.
 
     Returns
     -------

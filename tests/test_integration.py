@@ -258,6 +258,7 @@ class TestRegressionAgainstOriginal:
         data = torch.cat([segment1, segment2, segment3])
         
         # Add small amount of noise
+        torch.manual_seed(0)
         data += torch.randn_like(data) * 0.1
         
         # Run detection with more sensitive parameters

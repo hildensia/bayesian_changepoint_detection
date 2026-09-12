@@ -80,7 +80,7 @@ hazard and cannot detect anything; a change at `t` appears as mass at run
 length `k` in column `t + k`. Use `get_map_changepoints(R)` or
 `changepoint_probabilities(R, lag)`; never threshold `R[0, :]`. Versions
 1.0.x returned un-normalized `R[0, t]` as `changepoint_probs`; that output
-was removed in 1.1.0.
+is removed in the next release (see the Unreleased section of `CHANGELOG.md`).
 
 **Online likelihood objects are stateful and single-use.** `update_theta`
 grows the parameter vectors by one entry per timestep and `pdf` increments an

@@ -363,8 +363,10 @@ likelihood = StudentT(alpha=0.1, beta=0.01, kappa=1, mu=0)
 R, map_run_lengths = online_changepoint_detection(data, hazard_func, likelihood)
 
 # R[r, t] is P(run length = r | first t observations). The most likely run
-# length resets to ~1 right after a change, which is what the detector reads:
-print("Segment starts (MAP run-length path):", get_map_changepoints(R))
+# length resets to ~1 right after a change, which is what the detector reads.
+# On ambiguous data the MAP path can flip between two nearby starts;
+# min_separation merges starts closer than that many observations.
+print("Segment starts (MAP run-length path):", get_map_changepoints(R, min_separation=10))
 
 # Or a calibrated probability per position, judged `lag` observations later:
 probs = changepoint_probabilities(R, lag=10)     # probs[t] refers to data index t
