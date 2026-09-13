@@ -24,8 +24,10 @@ The full suite takes well under a minute on CPU. On a machine with CUDA or
 Apple's MPS it can take minutes, because device selection is automatic and
 small tensors are slower on an accelerator; tests therefore pass
 `device="cpu"` explicitly unless they are about device handling, and new
-tests should do the same. Tests that need a GPU carry `@pytest.mark.gpu`
-and skip themselves when none is present.
+tests should do the same. New tests that need a GPU must carry
+`@pytest.mark.gpu` and skip themselves when none is present; one existing
+test, `test_device_consistency` in `tests/test_integration.py`, predates
+the marker and only skips at runtime.
 
 CI runs `pytest tests/` on Python 3.9 to 3.12 with CPU-only PyTorch. No
 linter or type checker runs in CI yet; `pyproject.toml` carries black, isort
@@ -87,8 +89,10 @@ repository owner.
 2. Move the `[Unreleased]` section of `CHANGELOG.md` under a new
    `[X.Y.Z] — YYYY-MM-DD` heading.
 3. Open a PR with those two changes and merge it.
-4. Tag and create a GitHub release: `git tag vX.Y.Z && git push origin vX.Y.Z`,
-   then `gh release create vX.Y.Z --generate-notes`.
+4. Tag and create the GitHub release **on the upstream repository**, not on
+   a fork (the `CD` workflow and its secrets only exist upstream):
+   `git tag vX.Y.Z && git push <upstream-remote> vX.Y.Z`, then
+   `gh release create vX.Y.Z --repo hildensia/bayesian_changepoint_detection --generate-notes`.
 5. The `CD` workflow (`.github/workflows/cd.yml`) builds the distribution,
    runs `twine check`, and uploads to PyPI on the release event. Its upload
    step still uses the username/password secrets from 2022, which PyPI no
