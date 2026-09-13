@@ -1,0 +1,22 @@
+# Explicit Dependabot configuration so version-update PRs are predictable.
+# The library depends only on torch; numpy/scipy and the tooling live in
+# extras, and there is no lock file, so the "pip" entry mostly keeps the
+# lower bounds in pyproject.toml honest. Actions are grouped into one PR.
+version: 2
+updates:
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    groups:
+      actions:
+        patterns: ["*"]
+
+  - package-ecosystem: "pip"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 5
+    groups:
+      python-minor-and-patch:
+        update-types: ["minor", "patch"]
