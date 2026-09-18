@@ -594,6 +594,131 @@ from bayesian_changepoint_detection import offline_changepoint_detection
 Q, P, Pcp = offline_changepoint_detection(data, prior_func, likelihood)
 ```
 
+## FAQ
+
+### Which detector should I use, online or offline?
+
+`online_changepoint_detection` (Adams & MacKay 2007) processes the series one
+point at a time and, after each point, gives the posterior over how long the
+current segment has lasted. Use it for streams, or when you want to know how
+quickly a change would have been noticed. `offline_changepoint_detection`
+(Fearnhead 2006) sees the whole series and returns the posterior probability
+of a changepoint at each position, using data on both sides of it. Use it for
+retrospective analysis; it is usually sharper. Both cost O(T²).
+
+### The two detectors report the same change at indices one apart. Why?
+
+Different conventions, both documented in the docstrings:
+
+- Online (`get_map_changepoints`, `changepoint_probabilities`,
+  `viterbi_changepoints`): the index of the **first point of the new
+  segment**. A series whose first 80 points come from one regime reports 80.
+- Offline (`Pcp[j, t]`, and `torch.exp(Pcp).sum(0)[t]`): the probability that
+  a segment **ends at `t`**, i.e. the last point of the old regime. The same
+  series reports 79.
+
+So `offline index + 1 == online index`.
+
+### Does the scale of my data matter? (issue #34)
+
+Yes. The priors are on the mean and variance of the data, so their
+hyperparameters have units, and rescaling the data without rescaling them
+changes the model. For the univariate Normal-Gamma model (online `StudentT`
+with `alpha, beta, kappa, mu`; offline `StudentT` with `alpha0, beta0,
+kappa0, mu0`):
+
+| parameter | meaning | units |
+|---|---|---|
+| `mu` | prior mean of a segment | data units |
+| `kappa` | how many observations the prior mean is worth | none |
+| `alpha` | half the number of observations the variance prior is worth | none |
+| `beta` | `alpha` times the prior guess of the variance | data units² |
+
+Multiplying the data by `c` is equivalent to using `mu * c` and `beta * c²`
+with `kappa` and `alpha` unchanged. With `beta / alpha` far from the actual
+within-segment variance, or `mu` far from the data, the first points of
+every segment look surprising and the detector over- or under-reacts.
+
+Practical choices: standardize the data (subtract a typical level, divide by
+a typical within-segment standard deviation, ideally estimated on a
+calibration window rather than on the whole series), or set `mu` to the
+expected level and `beta = alpha * expected_variance`. The values in the
+examples (`alpha=0.1, beta=0.01, kappa=1, mu=0`) encode "around zero,
+variance about 0.1, but I am not sure": with `df = 2 * alpha = 0.2` the
+predictive is extremely heavy-tailed, which is why they still work on
+roughly unit-scale data.
+
+For `MultivariateT` the same holds: `mu` is in data units and `scale` is the
+Wishart scale on the *precision*; to encode a prior covariance `C` pass
+`scale = inv(C) / dof` (the default is `I / dof`, unit prior covariance).
+
+### How do I make the detector more or less sensitive? (issue #31)
+
+In order of importance:
+
+1. **The hazard, i.e. the expected segment length.** `constant_hazard(lam)`
+   puts prior probability `1 / lam` on a change at every step. Larger `lam`
+   means fewer detections, more confidence needed, slightly longer delay;
+   smaller `lam` means more, earlier, and more false alarms. This is the main
+   knob and it is about the data, not the model: set it near the segment
+   length you expect.
+2. **How much you trust the prior versus the first points of a new segment.**
+   `kappa` (for the mean) and `alpha` (for the variance) act as pseudo-counts.
+   Small values let a few points establish a new regime quickly; larger values
+   make the detector wait for more evidence. `beta` and `mu` should describe
+   the data (previous question) rather than be used as sensitivity knobs.
+3. **How you read the output.** `changepoint_probabilities(R, lag)` trades
+   delay for confidence: a larger `lag` gives a more decisive probability,
+   `lag` observations later. `get_map_changepoints(R, min_separation=k)`
+   merges near-duplicate starts when the posterior hesitates between
+   neighbouring points.
+
+Offline, the equivalent of the hazard is the segment-length prior:
+`const_prior(p=1/(T+1))` is the flat default; `geometric_prior(p=1/L)`
+encodes an expected segment length `L`; `negative_binomial_prior` allows a
+peaked length distribution. `truncate` only trades accuracy for speed.
+
+### My data are not normally distributed. Can I still use this? (issue #36)
+
+Every likelihood here assumes that **within a segment** the observations are
+independent and Gaussian, and it detects changes in the mean and/or the
+(co)variance of that Gaussian:
+
+| likelihood | within-segment model |
+|---|---|
+| online `StudentT`, offline `StudentT` | i.i.d. Normal, unknown mean and variance (Normal-Gamma prior) |
+| online `MultivariateT` | i.i.d. multivariate Normal, unknown mean and covariance (Normal-Wishart) |
+| offline `IndependentFeaturesLikelihood` | one Normal-Gamma model per dimension, independent |
+| offline `FullCovarianceLikelihood`, offline `MultivariateT` | multivariate Normal with unknown covariance (Xuan & Murphy 2007) |
+
+When the data are not Gaussian the detector still runs, and the question is
+what the misspecification does to it:
+
+- **Heavy tails or outliers**: single extreme points look like the start of
+  a new segment. The Student-t predictive already tolerates some of this;
+  a larger `lam` or `kappa` helps, and so does a transform (log for positive,
+  right-skewed quantities such as latencies or prices).
+- **Counts or bounded data**: a variance-stabilizing transform (square root
+  or Anscombe for counts, logit for proportions) usually gets you close
+  enough. A Poisson likelihood is on the roadmap (issue #23).
+- **Autocorrelation or slow drift**: the model has no notion of dynamics
+  within a segment, so a drift is reported as a sequence of small changes.
+  Differencing, or modelling residuals from a trend, is the usual fix.
+- **Changes in something other than mean or variance** (e.g. in
+  autocorrelation) are not detected.
+
+In short: use it when "piecewise stationary with Gaussian-ish noise" is a
+reasonable description after a transform, and check on a segment you trust
+that the residuals look plausible.
+
+### Why is it slow on my laptop with a GPU?
+
+Device selection is automatic and prefers CUDA or Apple MPS when present, but
+these algorithms move small tensors sequentially, so for series under
+several thousand points the CPU is usually faster. Pass `device="cpu"` to
+both the likelihood and the detector. See the GPU section above for when an
+accelerator pays off.
+
 ## Contributing
 
 Contributions are welcome! Please see the [Contributing Guide](CONTRIBUTING.md)

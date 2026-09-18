@@ -16,7 +16,8 @@ authors = [
     {name = "Johannes Kulick", email = "mail@johanneskulick.net"}
 ]
 maintainers = [
-    {name = "Johannes Kulick", email = "mail@johanneskulick.net"}
+    {name = "Johannes Kulick", email = "mail@johanneskulick.net"},
+    {name = "Esteban Carisimo", email = "el.murdo@gmail.com"},
 ]
 keywords = ["bayesian", "changepoint", "detection", "time-series", "pytorch"]
 classifiers = [
