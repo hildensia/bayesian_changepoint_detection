@@ -1,0 +1,43 @@
+cff-version: 1.2.0
+message: "If you use this software, please cite it as below."
+type: software
+title: "Bayesian Changepoint Detection: A PyTorch Implementation"
+abstract: "Bayesian online (Adams & MacKay 2007) and offline (Fearnhead 2006) changepoint detection with PyTorch, with Normal-Gamma and Normal-Wishart conjugate likelihoods."
+authors:
+  - family-names: Kulick
+    given-names: Johannes
+  - family-names: Carisimo
+    given-names: Esteban
+version: 1.1.0
+license: MIT
+repository-code: "https://github.com/hildensia/bayesian_changepoint_detection"
+url: "https://github.com/hildensia/bayesian_changepoint_detection"
+keywords:
+  - bayesian
+  - changepoint
+  - detection
+  - time-series
+  - pytorch
+references:
+  - type: unpublished
+    title: "Bayesian online changepoint detection"
+    authors:
+      - family-names: Adams
+        given-names: Ryan P.
+      - family-names: MacKay
+        given-names: David J. C.
+    year: 2007
+    url: "https://arxiv.org/abs/0710.3742"
+    notes: "arXiv:0710.3742 [stat.ML]"
+  - type: article
+    title: "Exact and efficient Bayesian inference for multiple changepoint problems"
+    authors:
+      - family-names: Fearnhead
+        given-names: Paul
+    journal: "Statistics and Computing"
+    volume: 16
+    issue: 2
+    start: 203
+    end: 213
+    year: 2006
+    doi: 10.1007/s11222-006-8450-8

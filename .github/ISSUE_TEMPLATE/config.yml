@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Usage question
+    url: https://github.com/hildensia/bayesian_changepoint_detection/blob/master/README.md
+    about: The README covers installation, the online and offline APIs, and how to read the run-length posterior R.
+  - name: Security issue
+    url: https://github.com/hildensia/bayesian_changepoint_detection/blob/master/SECURITY.md
+    about: Do not open a public issue; SECURITY.md explains how to report privately.

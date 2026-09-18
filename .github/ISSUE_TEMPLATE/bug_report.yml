@@ -1,0 +1,39 @@
+name: Bug report
+description: Something does not work as documented, or a result looks wrong.
+labels: ["bug"]
+body:
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened?
+      description: Describe the behaviour and what you expected instead. For a suspicious detection result, say which changepoints you expected and which you got.
+    validations:
+      required: true
+  - type: textarea
+    id: repro
+    attributes:
+      label: How to reproduce
+      description: A minimal Python snippet that generates the data (with its seed) or loads a small attached file, and the exact call, including the likelihood, its prior hyperparameters, and the hazard function or prior.
+      render: python
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Library version
+      description: Output of `python -c "import bayesian_changepoint_detection as b; print(b.__version__)"`, or the commit hash if installed from source.
+    validations:
+      required: true
+  - type: input
+    id: env
+    attributes:
+      label: Environment
+      description: Python and PyTorch versions, operating system, and the device (CPU, CUDA, MPS).
+      placeholder: "Python 3.12, torch 2.14 (CPU), macOS 15"
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Traceback or output
+      render: shell
