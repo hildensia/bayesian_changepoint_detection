@@ -121,3 +121,20 @@ def test_compute_run_length_posterior_is_the_forward_pass():
     R_direct, _ = online_changepoint_detection(data, hazard, _online(), device="cpu")
     R = compute_run_length_posterior(data, hazard, _online(), device="cpu")
     assert torch.equal(R, R_direct)
+
+
+def test_model_built_on_another_device_is_moved(monkeypatch):
+    """viterbi_changepoints must move the model's prior tensors like the
+    forward pass does, not only relabel its device attribute."""
+    moved = {}
+    model = _online()
+    original_to = model.to
+
+    def spy(device):
+        moved["device"] = torch.device(device)
+        return original_to(device)
+
+    monkeypatch.setattr(model, "to", spy)
+    torch.manual_seed(0)
+    viterbi_changepoints(torch.randn(10), partial(constant_hazard, 20, device="cpu"), model, device="cpu")
+    assert moved["device"].type == "cpu"

@@ -566,10 +566,15 @@ def viterbi_changepoints(
     in the second line, which is neither the forward pass nor Viterbi, and
     looped over ``r`` in Python.
     """
+    # Same device policy as online_changepoint_detection: the model's device
+    # is authoritative when none is given, and the model (prior tensors
+    # included), the data and the tables all move to that one device.
+    if device is None and hasattr(likelihood_model, "device"):
+        device = likelihood_model.device
     device = get_device(device)
+    if hasattr(likelihood_model, "to"):
+        likelihood_model.to(device)
     data = ensure_tensor(data, device=device)
-    if hasattr(likelihood_model, "device"):
-        likelihood_model.device = device
     T = data.shape[0]
     if T == 0:
         raise ValueError("data must contain at least one observation")
