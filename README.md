@@ -596,7 +596,10 @@ Q, P, Pcp = offline_changepoint_detection(data, prior_func, likelihood)
 
 ## Contributing
 
-Contributions are welcome! Please see our [Contributing Guide](CONTRIBUTING.md) for details.
+Contributions are welcome! Please see the [Contributing Guide](CONTRIBUTING.md)
+for setup, conventions and the review process. The project follows the
+[Contributor Covenant](CODE_OF_CONDUCT.md); security problems go through
+[SECURITY.md](SECURITY.md), not public issues.
 
 ## License
 

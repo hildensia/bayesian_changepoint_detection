@@ -1,0 +1,3 @@
+# Default owner for everything in the repository. GitHub requests a review
+# from the owner on every pull request.
+* @estcarisimo

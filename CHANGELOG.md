@@ -48,6 +48,9 @@ All notable changes to this project are documented here. The format follows
 - `CONTRIBUTING.md` (setup, conventions, the `master` rule, releasing) and an
   explicit `.github/dependabot.yml` (GitHub Actions and pip, weekly, grouped;
   pip uses `increase-if-necessary` so lower bounds are not bumped needlessly).
+- Community health files: `CODE_OF_CONDUCT.md` (Contributor Covenant 2.1),
+  `SECURITY.md`, `CITATION.cff`, `.github/CODEOWNERS`, issue templates and a
+  pull request template.
 
 ### Fixed
 
@@ -69,6 +72,8 @@ All notable changes to this project are documented here. The format follows
   `device="cpu"`.
 - `IndependentFeaturesLikelihood` and `FullCovarianceLikelihood` produced
   `nan` for univariate input (zero-variance length-one segments).
+- `.idea/` (IDE settings) and two example figures were tracked at the
+  repository root; removed, and root-level `*.png` is now ignored.
 - Root-level `test.py` was never collected by pytest; its tests now live in
   `tests/test_online_detection.py` with the pre-1.0 assertions restored.
 
