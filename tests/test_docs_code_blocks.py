@@ -1,5 +1,5 @@
 """
-Execute the Python code blocks in ``docs/*.md``.
+Execute the Python code blocks in ``README.md`` and ``docs/*.md``.
 
 Guards the prose against the API drifting underneath it: an earlier pair of
 GPU guides was never run and still unpacked a return value that had been
@@ -14,7 +14,8 @@ import pytest
 
 pytestmark = pytest.mark.behaviour
 
-DOCS = sorted((Path(__file__).resolve().parent.parent / "docs").glob("*.md"))
+ROOT = Path(__file__).resolve().parent.parent
+DOCS = [ROOT / "README.md", *sorted((ROOT / "docs").glob("*.md"))]
 FENCE = re.compile(r"^```python[^\n]*\n(.*?)^```", re.MULTILINE | re.DOTALL)
 
 

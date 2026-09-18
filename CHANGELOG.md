@@ -76,6 +76,14 @@ All notable changes to this project are documented here. The format follows
   `behaviour` (pins current behaviour); every test carries exactly one and
   `tests/conftest.py` fails collection otherwise. `pytest -m math` runs the
   87 tests that would fail if the mathematics were wrong.
+- README rewritten: what the library computes, a working install (with the
+  GitHub route while PyPI still serves 0.4), online/offline/multivariate
+  examples whose printed outputs are the real ones and which run in the test
+  suite, how to read `R`, an API table, the package layout, development
+  commands, captured example output, measured performance only, the FAQ,
+  and full references. Gone: three installation methods and a
+  troubleshooting section, the "Migration from v0.4" section (the old module
+  path it showed does not exist), and the remaining unmeasured GPU claims.
 - `docs/devices.md`: how the `device` argument is resolved by each detector,
   the MPS-to-CPU fallback of the offline detector, what has been measured,
   how to time your own workload, and the memory footprint of the run-length
