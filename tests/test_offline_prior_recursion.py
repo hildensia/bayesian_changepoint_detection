@@ -129,11 +129,20 @@ def test_legacy_truncation_is_off_by_default_and_was_wrong():
     assert torch.exp(Pcp[0]).sum().item() == pytest.approx(1.0, abs=1e-6)
     assert torch.where(probs > 0.5)[0].tolist() == [49, 99, 149]
 
+    # The bug, reproduced on request. How deep the dip gets depends on the
+    # prior: with the pre-1.1.1 default Psi0 = I (dof0 times tighter than
+    # the current unit-covariance default) the legacy cut discards the
+    # dominant term on this series; with the current default it happens
+    # not to on this series, which is luck, not safety.
     with pytest.warns(DeprecationWarning, match="truncate"):
         _, _, Pcp_legacy = offline_changepoint_detection(
-            data, prior, MultivariateT(device="cpu"), truncate=-40.0, device="cpu"
+            data,
+            prior,
+            MultivariateT(Psi0=torch.eye(10, dtype=torch.float64), device="cpu"),
+            truncate=-40.0,
+            device="cpu",
         )
-    assert torch.exp(Pcp_legacy).sum(0).max() > 1e6  # the bug, reproduced on request
+    assert torch.exp(Pcp_legacy).sum(0).max() > 1e6
 
 
 class TestEdgeCases:
