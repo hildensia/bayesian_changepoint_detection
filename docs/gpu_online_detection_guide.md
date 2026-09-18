@@ -114,10 +114,10 @@ for i in range(n_segments):
     # Varying means and standard deviations
     mean = (-1) ** i * (i + 1) * 2  # Alternating means: -2, 4, -6, 8, -10
     std = 0.5 + i * 0.3             # Increasing variance: 0.5, 0.8, 1.1, 1.4, 1.7
-    
+
     segment = torch.randn(segment_length) * std + mean
     segments.append(segment)
-    
+
     if i > 0:  # Don't include the start as a changepoint
         true_changepoints.append(i * segment_length)
 
@@ -149,33 +149,33 @@ import time
 def benchmark_detection(data, device_name='cpu', n_runs=3):
     """Benchmark changepoint detection on specified device."""
     device = torch.device(device_name)
-    
+
     # Move data to device
     data_device = data.to(device)
-    
+
     # Setup models
     hazard_func = partial(constant_hazard, 250)
     online_likelihood = StudentT(alpha=0.1, beta=0.01, kappa=1, mu=0, device=device)
-    
+
     times = []
-    
+
     for run in range(n_runs):
         torch.cuda.synchronize() if device.type == 'cuda' else None
         start_time = time.time()
-        
+
         # Run online detection
         run_length_probs, changepoint_probs = online_changepoint_detection(
             data_device, hazard_func, online_likelihood
         )
-        
+
         torch.cuda.synchronize() if device.type == 'cuda' else None
         end_time = time.time()
-        
+
         times.append(end_time - start_time)
-    
+
     avg_time = np.mean(times)
     std_time = np.std(times)
-    
+
     return avg_time, std_time, changepoint_probs
 
 # Benchmark on CPU
@@ -266,7 +266,7 @@ fig, axes = plt.subplots(3, 1, figsize=(12, 10))
 # Plot 1: Original data with true changepoints
 axes[0].plot(data.cpu().numpy())
 for cp in true_changepoints:
-    axes[0].axvline(cp, color='red', linestyle='--', alpha=0.7, 
+    axes[0].axvline(cp, color='red', linestyle='--', alpha=0.7,
                    label='True changepoint' if cp == true_changepoints[0] else "")
 axes[0].set_title('Original Time Series Data')
 axes[0].set_ylabel('Value')
@@ -312,31 +312,31 @@ For large datasets, proper memory management is crucial:
 if torch.cuda.is_available():
     print(f"GPU memory allocated: {torch.cuda.memory_allocated() / 1e6:.1f} MB")
     print(f"GPU memory cached: {torch.cuda.memory_reserved() / 1e6:.1f} MB")
-    
+
     # Clear cache if needed
     torch.cuda.empty_cache()
     print("GPU memory cache cleared")
-    
+
     # For extremely large datasets, consider processing in chunks
     def chunked_detection(data, chunk_size=10000):
         """Process large datasets in chunks to manage memory."""
         n_chunks = len(data) // chunk_size + (1 if len(data) % chunk_size > 0 else 0)
-        
+
         all_probs = []
         for i in range(n_chunks):
             start_idx = i * chunk_size
             end_idx = min((i + 1) * chunk_size, len(data))
             chunk = data[start_idx:end_idx]
-            
+
             # Process chunk
             _, chunk_probs = online_changepoint_detection(chunk, hazard_func, online_likelihood)
             all_probs.append(chunk_probs.cpu())  # Move to CPU to save GPU memory
-            
+
             # Clear GPU cache between chunks
             torch.cuda.empty_cache()
-        
+
         return torch.cat(all_probs)
-    
+
     print("Example of chunked processing for large datasets completed")
 ```
 
@@ -432,14 +432,14 @@ def main():
     # Check device availability
     print("=== Device Information ===")
     print(get_device_info())
-    
+
     device = get_device()
     print(f"Selected device: {device}")
-    
+
     # Generate test data
     print("\n=== Generating Test Data ===")
     torch.manual_seed(42)
-    
+
     # Simple univariate data
     data = torch.cat([
         torch.randn(200) + 0,
@@ -448,40 +448,40 @@ def main():
         torch.randn(200) + -2,
         torch.randn(200) + 1,
     ])
-    
+
     print(f"Generated data shape: {data.shape}")
-    
+
     # Move to device
     data_device = data.to(device)
-    
+
     # Setup models
     hazard_func = partial(constant_hazard, 250)
     likelihood = StudentT(alpha=0.1, beta=0.01, kappa=1, mu=0, device=device)
-    
+
     # Run detection
     print("\n=== Running Changepoint Detection ===")
     start_time = time.time()
-    
+
     run_length_probs, changepoint_probs = online_changepoint_detection(
         data_device, hazard_func, likelihood
     )
-    
+
     end_time = time.time()
     print(f"Detection completed in {end_time - start_time:.3f} seconds")
-    
+
     # Find changepoints
     detected = torch.where(changepoint_probs > 0.5)[0].cpu().numpy()
     print(f"Detected changepoints at: {detected}")
-    
+
     # Plot results
     plt.figure(figsize=(12, 8))
-    
+
     plt.subplot(2, 1, 1)
     plt.plot(data.cpu().numpy())
     plt.title('Time Series Data')
     plt.ylabel('Value')
     plt.grid(True, alpha=0.3)
-    
+
     plt.subplot(2, 1, 2)
     plt.plot(changepoint_probs.cpu().numpy())
     plt.axhline(0.5, color='red', linestyle='--', alpha=0.7, label='Threshold')
@@ -490,11 +490,11 @@ def main():
     plt.ylabel('Probability')
     plt.legend()
     plt.grid(True, alpha=0.3)
-    
+
     plt.tight_layout()
     plt.savefig('gpu_example_result.png', dpi=150, bbox_inches='tight')
     plt.show()
-    
+
     print("\nExample completed successfully!")
     print("Result plot saved as 'gpu_example_result.png'")
 

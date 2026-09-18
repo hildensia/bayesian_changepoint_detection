@@ -73,8 +73,11 @@ def test_matches_exhaustive_enumeration_multivariate(prior_name, n):
     prior = _priors(n)[prior_name]
     data = _series(n, seed=3, dims=2)
     Q, P, Pcp = offline_changepoint_detection(
-        data, prior, IndependentFeaturesLikelihood(device="cpu"),
-        truncate=float("-inf"), device="cpu",
+        data,
+        prior,
+        IndependentFeaturesLikelihood(device="cpu"),
+        truncate=float("-inf"),
+        device="cpu",
     )
     log_q0, cp_ref, _ = reference_offline_posterior(
         P.numpy(), lambda length: float(prior(length))
@@ -104,7 +107,9 @@ def test_default_truncation_matches_exact_sum():
     prior = partial(const_prior, p=1 / (len(data) + 1))
     kwargs = dict(likelihood_model=StudentT(device="cpu"), device="cpu")
     Q_t, _, Pcp_t = offline_changepoint_detection(data, prior, **kwargs)
-    Q_e, _, Pcp_e = offline_changepoint_detection(data, prior, truncate=float("-inf"), **kwargs)
+    Q_e, _, Pcp_e = offline_changepoint_detection(
+        data, prior, truncate=float("-inf"), **kwargs
+    )
     assert abs(Q_t[0].item() - Q_e[0].item()) < 1e-8
     assert torch.allclose(torch.exp(Pcp_t).sum(0), torch.exp(Pcp_e).sum(0), atol=1e-8)
 
@@ -112,7 +117,9 @@ def test_default_truncation_matches_exact_sum():
 class TestEdgeCases:
     def _run(self, data, prior=None):
         prior = prior or partial(const_prior, p=1 / (max(len(data), 1) + 1))
-        return offline_changepoint_detection(data, prior, StudentT(device="cpu"), device="cpu")
+        return offline_changepoint_detection(
+            data, prior, StudentT(device="cpu"), device="cpu"
+        )
 
     def test_empty_series_raises(self):
         with pytest.raises(ValueError, match="at least one observation"):

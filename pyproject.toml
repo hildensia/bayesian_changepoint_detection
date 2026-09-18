@@ -44,9 +44,8 @@ dev = [
     "pytest-cov>=4.0.0",
     "numpy>=1.21.0",
     "scipy>=1.7.0",
-    "black>=23.0.0",
-    "isort>=5.12.0",
-    "flake8>=6.1.0",
+    "ruff>=0.6",
+    "pre-commit>=3.0",
     "mypy>=1.0.0",
     "jupyter>=1.0.0",
     "notebook>=6.4.0",
@@ -74,31 +73,28 @@ Issues = "https://github.com/hildensia/bayesian_changepoint_detection/issues"
 where = ["."]
 include = ["bayesian_changepoint_detection*"]
 
-[tool.black]
+[tool.ruff]
 line-length = 88
-target-version = ['py39', 'py310', 'py311', 'py312']
-include = '\.pyi?$'
-extend-exclude = '''
-/(
-  # directories
-  \.eggs
-  | \.git
-  | \.hg
-  | \.mypy_cache
-  | \.tox
-  | \.venv
-  | _build
-  | buck-out
-  | build
-  | dist
-)/
-'''
+target-version = "py39"
+# Python sources only: no notebooks, and no fenced code blocks in Markdown
+# (ruff formats those by default since 0.16).
+include = ["*.py", "*.pyi", "**/pyproject.toml"]
+extend-exclude = ["build", "dist"]
 
-[tool.isort]
-profile = "black"
-multi_line_output = 3
-line_length = 88
-known_first_party = ["bayesian_changepoint_detection"]
+[tool.ruff.lint]
+# E/W pycodestyle, F pyflakes, I import order, B bugbear, UP pyupgrade.
+select = ["E", "F", "W", "I", "B", "UP"]
+# Line length is left to the formatter; long lines that survive it are in
+# docstrings and comments.
+ignore = ["E501"]
+
+[tool.ruff.lint.per-file-ignores]
+# Regression tests import after an importorskip / path setup on purpose.
+"tests/test_regression_vs_numpy.py" = ["E402"]
+"tests/test_studentt_exactness.py" = ["E402"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["bayesian_changepoint_detection"]
 
 [tool.mypy]
 python_version = "3.9"

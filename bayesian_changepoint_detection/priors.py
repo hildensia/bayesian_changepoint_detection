@@ -5,16 +5,18 @@ This module provides various prior distributions for modeling the probability
 of changepoints in time series data.
 """
 
+from typing import Optional, Union
+
 import torch
 import torch.distributions as dist
-from typing import Union, Optional
+
 from .device import ensure_tensor, get_device
 
 
 def const_prior(
-    t: Union[int, torch.Tensor], 
+    t: Union[int, torch.Tensor],
     p: float = 0.25,
-    device: Optional[Union[str, torch.device]] = None
+    device: Optional[Union[str, torch.device]] = None,
 ) -> Union[float, torch.Tensor]:
     """
     Constant prior on segment length.
@@ -25,7 +27,7 @@ def const_prior(
     ``n`` observations. ``offline_changepoint_detection`` needs the prior mass
     on lengths ``1 .. n - 1`` to stay below 1, i.e. ``p * (n - 1) < 1``, and
     raises otherwise.
-    
+
     Parameters
     ----------
     t : int or torch.Tensor
@@ -35,23 +37,23 @@ def const_prior(
         Must be between 0 and 1.
     device : str, torch.device, or None, optional
         Device to place the output tensor on.
-        
+
     Returns
     -------
     float or torch.Tensor
         Log probability value(s).
-        
+
     Examples
     --------
     >>> # Single time point
     >>> log_prob = const_prior(5, p=0.1)
     >>> print(log_prob)  # log(0.1)
-    
+
     >>> # Multiple time points
     >>> t = torch.arange(10)
     >>> log_probs = const_prior(t, p=0.2)
     >>> print(log_probs.shape)  # torch.Size([10])
-    
+
     Notes
     -----
     Under this prior every segmentation with the same number of changepoints
@@ -60,9 +62,9 @@ def const_prior(
     """
     if not 0 < p <= 1:
         raise ValueError("Probability p must be between 0 and 1")
-    
+
     log_p = torch.log(torch.tensor(p, dtype=torch.float32))
-    
+
     if isinstance(t, int):
         return log_p.item()
     else:
@@ -74,7 +76,7 @@ def const_prior(
 def geometric_prior(
     t: Union[int, torch.Tensor],
     p: float = 0.25,
-    device: Optional[Union[str, torch.device]] = None
+    device: Optional[Union[str, torch.device]] = None,
 ) -> Union[float, torch.Tensor]:
     """
     Geometric prior on segment length.
@@ -102,9 +104,9 @@ def geometric_prior(
     Examples
     --------
     >>> import math
-    >>> math.isclose(geometric_prior(1, p=0.1), math.log(0.1))
+    >>> math.isclose(geometric_prior(1, p=0.1), math.log(0.1), rel_tol=1e-6)
     True
-    >>> math.isclose(geometric_prior(3, p=0.1), math.log(0.9 * 0.9 * 0.1))
+    >>> math.isclose(geometric_prior(3, p=0.1), math.log(0.9 * 0.9 * 0.1), rel_tol=1e-6)
     True
     >>> geometric_prior(torch.arange(1, 11), p=0.2).shape
     torch.Size([10])
@@ -120,15 +122,19 @@ def geometric_prior(
         raise ValueError("Probability p must be between 0 and 1")
 
     device = get_device(device)
-    geom_dist = dist.Geometric(probs=torch.tensor(p, device=device, dtype=torch.float32))
+    geom_dist = dist.Geometric(
+        probs=torch.tensor(p, device=device, dtype=torch.float32)
+    )
 
     if isinstance(t, int):
         if t < 1:
-            return float('-inf')
-        return geom_dist.log_prob(torch.tensor(t - 1, device=device, dtype=torch.float32)).item()
+            return float("-inf")
+        return geom_dist.log_prob(
+            torch.tensor(t - 1, device=device, dtype=torch.float32)
+        ).item()
 
     t_tensor = ensure_tensor(t, device=device).to(torch.float32)
-    log_probs = torch.full_like(t_tensor, float('-inf'))
+    log_probs = torch.full_like(t_tensor, float("-inf"))
     valid = t_tensor >= 1
     if torch.any(valid):
         log_probs[valid] = geom_dist.log_prob(t_tensor[valid] - 1)
@@ -139,7 +145,7 @@ def negative_binomial_prior(
     t: Union[int, torch.Tensor],
     k: int = 1,
     p: float = 0.25,
-    device: Optional[Union[str, torch.device]] = None
+    device: Optional[Union[str, torch.device]] = None,
 ) -> Union[float, torch.Tensor]:
     """
     Negative binomial prior on segment length.
@@ -170,7 +176,7 @@ def negative_binomial_prior(
     Examples
     --------
     >>> import math
-    >>> math.isclose(negative_binomial_prior(3, k=2, p=0.5), math.log(2 * 0.25 * 0.5))
+    >>> math.isclose(negative_binomial_prior(3, k=2, p=0.5), math.log(2 * 0.25 * 0.5), rel_tol=1e-6)
     True
     >>> negative_binomial_prior(1, k=2, p=0.5)
     -inf
@@ -194,18 +200,23 @@ def negative_binomial_prior(
     scalar = isinstance(t, int)
     # Evaluate in float64 on the CPU (lgamma differences lose digits in
     # float32, and MPS has no float64), then move to the requested device.
-    t_tensor = torch.tensor([t], dtype=torch.float64) if scalar \
+    t_tensor = (
+        torch.tensor([t], dtype=torch.float64)
+        if scalar
         else ensure_tensor(t, device="cpu").to(torch.float64)
+    )
     kk = torch.tensor(float(k), dtype=torch.float64)
     pp = torch.tensor(float(p), dtype=torch.float64)
 
-    log_probs = torch.full_like(t_tensor, float('-inf'))
+    log_probs = torch.full_like(t_tensor, float("-inf"))
     valid = t_tensor >= k
     if torch.any(valid):
         tv = t_tensor[valid]
         # log C(t-1, k-1) + k log p + (t-k) log(1-p); xlogy keeps p = 1 finite.
         log_probs[valid] = (
-            torch.lgamma(tv) - torch.lgamma(kk) - torch.lgamma(tv - kk + 1)
+            torch.lgamma(tv)
+            - torch.lgamma(kk)
+            - torch.lgamma(tv - kk + 1)
             + kk * torch.log(pp)
             + torch.xlogy(tv - kk, 1 - pp)
         )

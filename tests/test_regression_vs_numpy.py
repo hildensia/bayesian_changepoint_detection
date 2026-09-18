@@ -27,33 +27,37 @@ import torch
 
 np = pytest.importorskip("numpy")
 
+from functools import partial
+
+from bayesian_changepoint_detection import offline_likelihoods
 from bayesian_changepoint_detection.bayesian_models import (
     offline_changepoint_detection,
 )
-from bayesian_changepoint_detection import offline_likelihoods
 from bayesian_changepoint_detection.priors import const_prior
-
-from functools import partial
-
 
 # --- fixed-seed datasets (identical to the golden-generation script) --------
 
+
 def univariate_dataset():
     rng = np.random.default_rng(42)
-    return np.concatenate([
-        rng.normal(0.0, 1.0, 50),
-        rng.normal(5.0, 0.5, 50),
-        rng.normal(-2.0, 2.0, 50),
-    ])
+    return np.concatenate(
+        [
+            rng.normal(0.0, 1.0, 50),
+            rng.normal(5.0, 0.5, 50),
+            rng.normal(-2.0, 2.0, 50),
+        ]
+    )
 
 
 def multivariate_dataset():
     rng = np.random.default_rng(7)
-    return np.concatenate([
-        rng.multivariate_normal([0, 0], np.eye(2), 40),
-        rng.multivariate_normal([3, -3], [[1.0, 0.6], [0.6, 1.0]], 40),
-        rng.multivariate_normal([0, 2], [[0.5, 0.0], [0.0, 2.0]], 40),
-    ])
+    return np.concatenate(
+        [
+            rng.multivariate_normal([0, 0], np.eye(2), 40),
+            rng.multivariate_normal([3, -3], [[1.0, 0.6], [0.6, 1.0]], 40),
+            rng.multivariate_normal([0, 2], [[0.5, 0.0], [0.0, 2.0]], 40),
+        ]
+    )
 
 
 # --- golden P values from the NumPy implementation (interior entries only) --
@@ -120,8 +124,11 @@ def test_xuan_detection_locations(name):
     data = torch.tensor(multivariate_dataset())
     prior = partial(const_prior, p=1.0 / (len(data) + 1))
     _, _, Pcp = offline_changepoint_detection(
-        data, prior, LIKELIHOOD_CLASSES[name](device="cpu"),
-        truncate=-40, device="cpu",
+        data,
+        prior,
+        LIKELIHOOD_CLASSES[name](device="cpu"),
+        truncate=-40,
+        device="cpu",
     )
     peaks = top_peaks(Pcp)
     # true boundaries at 40 and 80; allow the +-2 jitter the NumPy version
@@ -135,8 +142,11 @@ def test_studentt_detection_locations():
     data = torch.tensor(univariate_dataset())
     prior = partial(const_prior, p=1.0 / (len(data) + 1))
     _, _, Pcp = offline_changepoint_detection(
-        data, prior, offline_likelihoods.StudentT(device="cpu"),
-        truncate=-40, device="cpu",
+        data,
+        prior,
+        offline_likelihoods.StudentT(device="cpu"),
+        truncate=-40,
+        device="cpu",
     )
     peaks = top_peaks(Pcp)
     # true boundaries at 50 and 100; the NumPy version peaked at 49 and 98
@@ -156,8 +166,11 @@ def test_offline_multivariate_t_detection_locations():
     data = torch.tensor(multivariate_dataset())
     prior = partial(const_prior, p=1.0 / (len(data) + 1))
     _, _, Pcp = offline_changepoint_detection(
-        data, prior, offline_likelihoods.MultivariateT(device="cpu"),
-        truncate=-40, device="cpu",
+        data,
+        prior,
+        offline_likelihoods.MultivariateT(device="cpu"),
+        truncate=-40,
+        device="cpu",
     )
     peaks = top_peaks(Pcp)
     assert len(peaks) == 2

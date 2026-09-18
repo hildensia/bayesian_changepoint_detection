@@ -4,52 +4,52 @@ Tests for prior probability distributions.
 
 import math
 
+import numpy as np
 import pytest
 import torch
-import numpy as np
 from scipy.stats import geom, nbinom
 
 from bayesian_changepoint_detection.priors import (
     const_prior,
     geometric_prior,
-    negative_binomial_prior
+    negative_binomial_prior,
 )
 
 
 class TestConstPrior:
     """Test constant prior function."""
-    
+
     def test_single_timepoint(self):
         """Test constant prior for single time point."""
         log_prob = const_prior(5, p=0.1)
         expected = np.log(0.1)
         assert abs(log_prob - expected) < 1e-6
-    
+
     def test_multiple_timepoints(self):
         """Test constant prior for multiple time points."""
         t = torch.arange(10)
         log_probs = const_prior(t, p=0.2)
-        
+
         assert isinstance(log_probs, torch.Tensor)
         assert log_probs.shape == (10,)
-        
+
         # All values should be the same
         expected = torch.log(torch.tensor(0.2))
         assert torch.allclose(log_probs, expected.expand_as(log_probs))
-    
+
     def test_probability_validation(self):
         """Test probability parameter validation."""
         # Valid probabilities
         const_prior(1, p=0.1)
         const_prior(1, p=1.0)
-        
+
         # Invalid probabilities
         with pytest.raises(ValueError):
             const_prior(1, p=0.0)
-        
+
         with pytest.raises(ValueError):
             const_prior(1, p=1.1)
-        
+
         with pytest.raises(ValueError):
             const_prior(1, p=-0.1)
 
@@ -100,7 +100,11 @@ class TestNegativeBinomialPrior:
     @pytest.mark.parametrize("k,p", [(1, 0.25), (2, 0.25), (3, 0.5), (5, 0.9)])
     def test_closed_form(self, k, p):
         for t in range(k, 40):
-            expected = math.log(math.comb(t - 1, k - 1)) + k * math.log(p) + (t - k) * math.log1p(-p)
+            expected = (
+                math.log(math.comb(t - 1, k - 1))
+                + k * math.log(p)
+                + (t - k) * math.log1p(-p)
+            )
             assert abs(negative_binomial_prior(t, k=k, p=p) - expected) < 1e-5, t
 
     @pytest.mark.parametrize("k", [1, 2, 4])
@@ -117,12 +121,16 @@ class TestNegativeBinomialPrior:
         assert torch.allclose(nb, ge, atol=1e-5)
 
     def test_is_a_probability_mass_function(self):
-        probs = torch.exp(negative_binomial_prior(torch.arange(1, 5000), k=3, p=0.05, device="cpu"))
+        probs = torch.exp(
+            negative_binomial_prior(torch.arange(1, 5000), k=3, p=0.05, device="cpu")
+        )
         assert abs(probs.sum().item() - 1.0) < 1e-4
 
     def test_impossible_cases(self):
         assert negative_binomial_prior(1, k=2, p=0.1) == float("-inf")
-        out = negative_binomial_prior(torch.tensor([1, 2, 3, 4]), k=3, p=0.1, device="cpu")
+        out = negative_binomial_prior(
+            torch.tensor([1, 2, 3, 4]), k=3, p=0.1, device="cpu"
+        )
         assert out[0] == float("-inf") and out[1] == float("-inf")
         assert torch.isfinite(out[2:]).all()
 
@@ -149,34 +157,34 @@ class TestNegativeBinomialPrior:
 
 class TestPriorDeviceHandling:
     """Test device handling for priors."""
-    
+
     @pytest.mark.gpu
     @pytest.mark.skipif(not torch.cuda.is_available(), reason="CUDA not available")
     def test_device_consistency(self):
         """Test that priors work correctly with different devices."""
         t_cpu = torch.arange(1, 6)
         t_cuda = t_cpu.cuda()
-        
+
         # Test const_prior
-        log_probs_cpu = const_prior(t_cpu, p=0.1, device='cpu')
-        log_probs_cuda = const_prior(t_cuda, p=0.1, device='cuda')
-        
-        assert log_probs_cpu.device.type == 'cpu'
-        assert log_probs_cuda.device.type == 'cuda'
+        log_probs_cpu = const_prior(t_cpu, p=0.1, device="cpu")
+        log_probs_cuda = const_prior(t_cuda, p=0.1, device="cuda")
+
+        assert log_probs_cpu.device.type == "cpu"
+        assert log_probs_cuda.device.type == "cuda"
         assert torch.allclose(log_probs_cpu, log_probs_cuda.cpu())
-        
+
         # Test geometric_prior
-        geom_cpu = geometric_prior(t_cpu, p=0.2, device='cpu')
-        geom_cuda = geometric_prior(t_cuda, p=0.2, device='cuda')
-        
-        assert geom_cpu.device.type == 'cpu'
-        assert geom_cuda.device.type == 'cuda'
+        geom_cpu = geometric_prior(t_cpu, p=0.2, device="cpu")
+        geom_cuda = geometric_prior(t_cuda, p=0.2, device="cuda")
+
+        assert geom_cpu.device.type == "cpu"
+        assert geom_cuda.device.type == "cuda"
         assert torch.allclose(geom_cpu, geom_cuda.cpu())
-        
+
         # Test negative_binomial_prior
-        nb_cpu = negative_binomial_prior(t_cpu, k=2, p=0.3, device='cpu')
-        nb_cuda = negative_binomial_prior(t_cuda, k=2, p=0.3, device='cuda')
-        
-        assert nb_cpu.device.type == 'cpu'
-        assert nb_cuda.device.type == 'cuda'
+        nb_cpu = negative_binomial_prior(t_cpu, k=2, p=0.3, device="cpu")
+        nb_cuda = negative_binomial_prior(t_cuda, k=2, p=0.3, device="cuda")
+
+        assert nb_cpu.device.type == "cpu"
+        assert nb_cuda.device.type == "cuda"
         assert torch.allclose(nb_cpu, nb_cuda.cpu(), equal_nan=True)

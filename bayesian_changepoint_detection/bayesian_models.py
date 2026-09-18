@@ -6,12 +6,13 @@ algorithms using PyTorch for efficient computation and GPU acceleration.
 """
 
 import warnings
+from typing import Callable, Optional, Union
 
 import torch
-from typing import Union, Callable, Tuple, Optional
+
 from .device import ensure_tensor, get_device
-from .online_likelihoods import BaseLikelihood as OnlineLikelihood
 from .offline_likelihoods import BaseLikelihood as OfflineLikelihood
+from .online_likelihoods import BaseLikelihood as OnlineLikelihood
 
 
 def _nan_to_neg_inf(x: torch.Tensor) -> torch.Tensor:
@@ -21,7 +22,7 @@ def _nan_to_neg_inf(x: torch.Tensor) -> torch.Tensor:
     infinities to finite extrema, turning impossible (log-probability -inf)
     entries into finite values that then take part in later recursions.
     """
-    return torch.where(torch.isnan(x), torch.full_like(x, float('-inf')), x)
+    return torch.where(torch.isnan(x), torch.full_like(x, float("-inf")), x)
 
 
 def offline_changepoint_detection(
@@ -29,14 +30,14 @@ def offline_changepoint_detection(
     prior_function: Callable[[int], float],
     likelihood_model: OfflineLikelihood,
     truncate: float = -40.0,
-    device: Optional[Union[str, torch.device]] = None
-) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+    device: Optional[Union[str, torch.device]] = None,
+) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
     """
     Offline Bayesian changepoint detection using dynamic programming.
-    
+
     Computes the exact posterior distribution over changepoint locations
     using the algorithm described in Fearnhead (2006).
-    
+
     Parameters
     ----------
     data : torch.Tensor
@@ -55,16 +56,16 @@ def offline_changepoint_detection(
         More negative values = more accurate but slower computation.
     device : str, torch.device, or None, optional
         Device to place tensors on.
-        
+
     Returns
     -------
     Q : torch.Tensor
         Log evidence for data[t:] for each time t. Shape: [T].
-    P : torch.Tensor  
+    P : torch.Tensor
         Log likelihood of segment [t, s] with no changepoints. Shape: [T, T].
     Pcp : torch.Tensor
         Log probability of j-th changepoint at time t. Shape: [T-1, T-1].
-        
+
     Examples
     --------
     >>> import torch
@@ -72,16 +73,16 @@ def offline_changepoint_detection(
     >>> from bayesian_changepoint_detection import (
     ...     offline_changepoint_detection, const_prior, StudentT
     ... )
-    >>> 
+    >>>
     >>> data = torch.randn(100)
     >>> prior_func = partial(const_prior, p=0.01)
     >>> likelihood = StudentT()
     >>> Q, P, Pcp = offline_changepoint_detection(data, prior_func, likelihood)
-    >>> 
+    >>>
     >>> # Get changepoint probabilities
     >>> changepoint_probs = torch.exp(Pcp).sum(0)
     >>> detected_changepoints = torch.where(changepoint_probs > 0.5)[0]
-    
+
     Notes
     -----
     This algorithm has O(T^2) time complexity in the worst case, but the truncation
@@ -115,7 +116,8 @@ def offline_changepoint_detection(
         # The offline recursion needs float64, which MPS does not support.
         warnings.warn(
             "MPS does not support float64; running offline changepoint "
-            "detection on CPU instead."
+            "detection on CPU instead.",
+            stacklevel=2,
         )
         device = torch.device("cpu")
     data = ensure_tensor(data, device=device)
@@ -141,12 +143,12 @@ def offline_changepoint_detection(
 
     # Initialize arrays
     Q = torch.zeros(n, device=device, dtype=dtype)
-    P = torch.full((n, n), float('-inf'), device=device, dtype=dtype)
+    P = torch.full((n, n), float("-inf"), device=device, dtype=dtype)
 
     # Segment-length prior in log space, indexed by length: g[l] = log g(l)
     # for l = 1 .. n; a segment of length 0 is impossible, so g[0] = -inf and
     # G[l] = log sum_{i=1}^{l} g(i) comes straight out of the cumulative sum.
-    g = torch.full((n + 1,), float('-inf'), device=device, dtype=dtype)
+    g = torch.full((n + 1,), float("-inf"), device=device, dtype=dtype)
     for length in range(1, n + 1):
         g[length] = float(prior_function(length))
     G = torch.logcumsumexp(g, dim=0)
@@ -174,7 +176,7 @@ def offline_changepoint_detection(
         P[t, t:] = row
 
         # summand[j] = P[t, t+j] + Q[t+j+1] + g[j+1] for j = 0 .. n-2-t
-        summand = row[:n - 1 - t] + Q[t + 1:] + g[1:n - t]
+        summand = row[: n - 1 - t] + Q[t + 1 :] + g[1 : n - t]
         running = torch.logcumsumexp(summand, dim=0)
 
         # Truncate the sum where later terms cannot contribute anymore
@@ -191,11 +193,11 @@ def offline_changepoint_detection(
         Q[t] = torch.logaddexp(P_next_cp, P[t, n - 1] + log_one_minus_G[n - 1 - t])
 
     # Compute changepoint probability matrix
-    Pcp = torch.full((n - 1, n - 1), float('-inf'), device=device, dtype=dtype)
+    Pcp = torch.full((n - 1, n - 1), float("-inf"), device=device, dtype=dtype)
 
     # First changepoint at t: the first segment is data[0:t+1], length t + 1.
     if n > 1:
-        Pcp[0, :] = _nan_to_neg_inf(P[0, :n - 1] + Q[1:] + g[1:n] - Q[0])
+        Pcp[0, :] = _nan_to_neg_inf(P[0, : n - 1] + Q[1:] + g[1:n] - Q[0])
 
     # Subsequent changepoints. For each j the sum over the previous
     # changepoint s = j-1+i (rows) for every t = j+c (columns) is one masked
@@ -205,12 +207,17 @@ def offline_changepoint_detection(
     # i.e. only i <= c contributes.
     for j in range(1, n - 1):
         m = n - 1 - j
-        head = Pcp[j - 1, j - 1:n - 2] - Q[j:n - 1]  # [m], indexed by i
+        head = Pcp[j - 1, j - 1 : n - 2] - Q[j : n - 1]  # [m], indexed by i
         rows = torch.arange(m, device=device).unsqueeze(1)
         cols = torch.arange(m, device=device).unsqueeze(0)
-        length = (cols - rows + 1).clamp(min=0)     # 0 where i > c -> g[0] = -inf
-        M = head.unsqueeze(1) + P[j:n - 1, j:n - 1] + Q[j + 1:].unsqueeze(0) + g[length]
-        M = M.masked_fill(rows > cols, float('-inf'))
+        length = (cols - rows + 1).clamp(min=0)  # 0 where i > c -> g[0] = -inf
+        M = (
+            head.unsqueeze(1)
+            + P[j : n - 1, j : n - 1]
+            + Q[j + 1 :].unsqueeze(0)
+            + g[length]
+        )
+        M = M.masked_fill(rows > cols, float("-inf"))
         Pcp[j, j:] = _nan_to_neg_inf(torch.logsumexp(M, dim=0))
 
     return Q, P, Pcp
@@ -220,14 +227,14 @@ def online_changepoint_detection(
     data: torch.Tensor,
     hazard_function: Callable[[torch.Tensor], torch.Tensor],
     likelihood_model: OnlineLikelihood,
-    device: Optional[Union[str, torch.device]] = None
-) -> Tuple[torch.Tensor, torch.Tensor]:
+    device: Optional[Union[str, torch.device]] = None,
+) -> tuple[torch.Tensor, torch.Tensor]:
     """
     Online Bayesian changepoint detection with run length filtering.
-    
+
     Processes data sequentially, maintaining a posterior distribution over
     run lengths (time since last changepoint) as described in Adams & MacKay (2007).
-    
+
     Parameters
     ----------
     data : torch.Tensor
@@ -239,7 +246,7 @@ def online_changepoint_detection(
         Online likelihood model that maintains sufficient statistics.
     device : str, torch.device, or None, optional
         Device to place tensors on.
-        
+
     Returns
     -------
     R : torch.Tensor
@@ -253,7 +260,7 @@ def online_changepoint_detection(
         the drops into segment start indices, and
         ``changepoint_probabilities`` gives a calibrated probability per
         position at a chosen detection lag.
-        
+
     Examples
     --------
     >>> import torch
@@ -262,7 +269,7 @@ def online_changepoint_detection(
     ...     online_changepoint_detection, constant_hazard, StudentT,
     ...     get_map_changepoints, changepoint_probabilities,
     ... )
-    >>> 
+    >>>
     >>> _ = torch.manual_seed(0)
     >>> data = torch.cat([torch.randn(80), torch.randn(80) + 5])
     >>> hazard_func = partial(constant_hazard, 100)  # Expected run length = 100
@@ -274,7 +281,7 @@ def online_changepoint_detection(
     tensor([80])
     >>> changepoint_probabilities(R, lag=10)[80] > 0.85
     tensor(True)
-    
+
     Notes
     -----
     This algorithm has O(T^2) time complexity but is naturally online and can
@@ -292,7 +299,7 @@ def online_changepoint_detection(
     ``changepoint_probs``; that quantity could not detect changepoints. This
     version restores the pre-1.0 return value (the MAP run length) and adds
     ``changepoint_probabilities`` for the lagged probability.
-    
+
     References
     ----------
     Adams, R. P., & MacKay, D. J. (2007). Bayesian online changepoint detection.
@@ -307,16 +314,16 @@ def online_changepoint_detection(
     if hasattr(likelihood_model, "to"):
         likelihood_model.to(device)
     data = ensure_tensor(data, device=device)
-    
+
     if data.dim() == 1:
         T = data.shape[0]
     else:
         T = data.shape[0]  # First dimension is time
-    
+
     # Initialize run length probability matrix
     R = torch.zeros(T + 1, T + 1, device=device, dtype=torch.float32)
     R[0, 0] = 1.0  # Initially, run length is 0 with probability 1
-    
+
     # Process each data point sequentially
     for t in range(T):
         # Get current data point
@@ -324,35 +331,35 @@ def online_changepoint_detection(
             x = data[t]
         else:
             x = data[t]
-        
+
         # Evaluate predictive probabilities under current parameters
         # This gives us p(x_t | x_{1:t-1}, r_{t-1}) for all possible run lengths
         pred_log_probs = likelihood_model.pdf(x)
-        
+
         # Convert to probabilities (but keep in log space for stability)
         pred_probs = torch.exp(pred_log_probs)
-        
+
         # Evaluate hazard function for current run lengths
         run_lengths = torch.arange(t + 1, device=device, dtype=torch.float32)
         H = hazard_function(run_lengths)
-        
+
         # Growth probabilities: shift probabilities down and right,
         # scaled by hazard function and predictive probabilities
         # R[r+1, t+1] = R[r, t] * p(x_t | r) * (1 - H(r))
-        R[1:t + 2, t + 1] = R[0:t + 1, t] * pred_probs * (1 - H)
-        
+        R[1 : t + 2, t + 1] = R[0 : t + 1, t] * pred_probs * (1 - H)
+
         # Changepoint probability: mass accumulates at r = 0
         # R[0, t+1] = sum_r R[r, t] * p(x_t | r) * H(r)
-        R[0, t + 1] = torch.sum(R[0:t + 1, t] * pred_probs * H)
-        
+        R[0, t + 1] = torch.sum(R[0 : t + 1, t] * pred_probs * H)
+
         # Normalize run length probabilities for numerical stability
         total_prob = torch.sum(R[:, t + 1])
         if total_prob > 0:
             R[:, t + 1] = R[:, t + 1] / total_prob
-        
+
         # Update likelihood model parameters with new observation
         likelihood_model.update_theta(x, t=t)
-    
+
     map_run_lengths = torch.argmax(R, dim=0)
     return R, map_run_lengths
 
@@ -465,14 +472,14 @@ def compute_run_length_posterior(
     data: torch.Tensor,
     hazard_function: Callable[[torch.Tensor], torch.Tensor],
     likelihood_model: OnlineLikelihood,
-    device: Optional[Union[str, torch.device]] = None
+    device: Optional[Union[str, torch.device]] = None,
 ) -> torch.Tensor:
     """
     Compute the full run length posterior distribution.
-    
+
     This is a convenience function that returns just the run length
     posterior from online changepoint detection.
-    
+
     Parameters
     ----------
     data : torch.Tensor
@@ -483,12 +490,12 @@ def compute_run_length_posterior(
         Online likelihood model.
     device : str, torch.device, or None, optional
         Device to place tensors on.
-        
+
     Returns
     -------
     torch.Tensor
         Run length posterior distribution R[r, t].
-        
+
     Examples
     --------
     >>> posterior = compute_run_length_posterior(data, hazard_func, likelihood)
@@ -503,8 +510,8 @@ def viterbi_changepoints(
     data: torch.Tensor,
     hazard_function: Callable[[torch.Tensor], torch.Tensor],
     likelihood_model: OnlineLikelihood,
-    device: Optional[Union[str, torch.device]] = None
-) -> Tuple[torch.Tensor, torch.Tensor]:
+    device: Optional[Union[str, torch.device]] = None,
+) -> tuple[torch.Tensor, torch.Tensor]:
     """
     Most probable run-length path (Viterbi / max-product) under the BOCPD model.
 
@@ -581,20 +588,22 @@ def viterbi_changepoints(
     if not bool(torch.isfinite(data).all()):
         raise ValueError("data contains NaN or Inf; remove or impute them first")
 
-    V = torch.full((T + 1, T + 1), float('-inf'), device=device, dtype=torch.float32)
+    V = torch.full((T + 1, T + 1), float("-inf"), device=device, dtype=torch.float32)
     backpointers = torch.zeros((T + 1, T + 1), device=device, dtype=torch.long)
     V[0, 0] = 0.0
 
     for t in range(T):
         x = data[t]
-        log_pred = likelihood_model.pdf(x).to(device=device, dtype=torch.float32)  # [t+1]
+        log_pred = likelihood_model.pdf(x).to(
+            device=device, dtype=torch.float32
+        )  # [t+1]
         run_lengths = torch.arange(t + 1, device=device, dtype=torch.float32)
         H = hazard_function(run_lengths).to(device=device, dtype=torch.float32)
-        scores = V[:t + 1, t] + log_pred                       # best path into each r, times x_t
+        scores = V[: t + 1, t] + log_pred  # best path into each r, times x_t
 
         # Growth: r -> r + 1, no changepoint.
-        V[1:t + 2, t + 1] = scores + torch.log1p(-H)
-        backpointers[1:t + 2, t + 1] = torch.arange(t + 1, device=device)
+        V[1 : t + 2, t + 1] = scores + torch.log1p(-H)
+        backpointers[1 : t + 2, t + 1] = torch.arange(t + 1, device=device)
 
         # Changepoint: every r -> 0; keep only the best predecessor.
         cp_scores = scores + torch.log(H)

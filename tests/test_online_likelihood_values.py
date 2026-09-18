@@ -60,12 +60,15 @@ def test_multivariate_t_matches_scipy_per_run_length(seed, dims):
     expected = []
     for r in range(model.mu.shape[0]):
         t_dof = float(model.dof[r] - dims + 1)
-        shape = np.linalg.inv(model.scale[r].double().numpy()) * (
-            float(model.kappa[r]) + 1
-        ) / (float(model.kappa[r]) * t_dof)
+        shape = (
+            np.linalg.inv(model.scale[r].double().numpy())
+            * (float(model.kappa[r]) + 1)
+            / (float(model.kappa[r]) * t_dof)
+        )
         expected.append(
-            multivariate_t(loc=model.mu[r].double().numpy(), shape=shape, df=t_dof)
-            .logpdf(x.double().numpy())
+            multivariate_t(
+                loc=model.mu[r].double().numpy(), shape=shape, df=t_dof
+            ).logpdf(x.double().numpy())
         )
     expected = torch.tensor(expected, dtype=torch.float64)
 
@@ -81,7 +84,8 @@ def test_multivariate_run_length_posterior_matches_independent_reference():
     from functools import partial
 
     from bayesian_changepoint_detection import (
-        constant_hazard, online_changepoint_detection,
+        constant_hazard,
+        online_changepoint_detection,
     )
     from tests._reference_bocpd import reference_mv_bocpd
 
@@ -89,7 +93,11 @@ def test_multivariate_run_length_posterior_matches_independent_reference():
     dims = 3
     X = np.concatenate([rng.normal(0, 1, (30, dims)), rng.normal(3, 1, (30, dims))])
     expected = reference_mv_bocpd(
-        X, lam=40, dof0=dims + 1, kappa0=1.0, mu0=np.zeros(dims),
+        X,
+        lam=40,
+        dof0=dims + 1,
+        kappa0=1.0,
+        mu0=np.zeros(dims),
         W0=np.eye(dims) / (dims + 1),  # the library default: unit prior covariance
     )
     R, _ = online_changepoint_detection(
@@ -98,7 +106,7 @@ def test_multivariate_run_length_posterior_matches_independent_reference():
         MultivariateT(dims=dims, device="cpu"),
         device="cpu",
     )
-    assert np.abs(R.numpy() - expected).max() < 1e-5   # measured 5e-7 in float32
+    assert np.abs(R.numpy() - expected).max() < 1e-5  # measured 5e-7 in float32
     assert np.array_equal(R.numpy().argmax(axis=0), expected.argmax(axis=0))
 
 
@@ -129,12 +137,16 @@ def test_multivariate_t_long_run_predictive_does_not_drift(n, dims, sd):
     Y = X[:-1]
     k0, nu0, mu0 = 1.0, dims + 1, np.zeros(dims)
     T0 = np.linalg.inv(np.eye(dims) / (dims + 1))  # inverse of the default W
-    N = len(Y); ybar = Y.mean(0); S = (Y - ybar).T @ (Y - ybar)
+    N = len(Y)
+    ybar = Y.mean(0)
+    S = (Y - ybar).T @ (Y - ybar)
     kN, nuN = k0 + N, nu0 + N
     muN = (k0 * mu0 + N * ybar) / kN
     TN = T0 + S + k0 * N / kN * np.outer(ybar - mu0, ybar - mu0)
     tdof = nuN - dims + 1
-    expected = multivariate_t.logpdf(X[-1], loc=muN, shape=TN * (kN + 1) / (kN * tdof), df=tdof)
+    expected = multivariate_t.logpdf(
+        X[-1], loc=muN, shape=TN * (kN + 1) / (kN * tdof), df=tdof
+    )
     # float32 lgamma at tdof ~ 1500 costs ~1e-3; master is off by 1e-1 here.
     assert abs(got - expected) < 3e-3
     assert np.allclose(model.scale_inv[-1].double().numpy(), TN, rtol=1e-4, atol=1e-2)
