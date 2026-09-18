@@ -189,7 +189,9 @@ python -c "import torch; print(f'GPU name: {torch.cuda.get_device_name(0) if tor
 
 ## GPU/CUDA Acceleration
 
-The library provides GPU acceleration for significant performance improvements. Here's a quick example:
+Every likelihood and both detectors take a `device` argument, so the same
+code runs on the CPU, a CUDA GPU or Apple MPS. Whether an accelerator is
+faster depends on the workload (see the note below). A quick example:
 
 ```python
 import torch
@@ -221,9 +223,9 @@ Apple M-series laptop the CPU is 6-30x faster than MPS for the cases in the
 FAQ below; CUDA is unmeasured (issue #43). Device detection is automatic;
 pass `device="cpu"` to opt out.
 
-📖 **For a complete GPU guide with benchmarks, multivariate examples, and memory management tips, see**
-- **[docs/gpu_offline_detection_guide.md](docs/gpu_offline_detection_guide.md)**
-- **[docs/gpu_online_detection_guide.md](docs/gpu_online_detection_guide.md)**
+📖 How each detector resolves `device`, the MPS fallback, what has been
+measured, how to time your own workload and how much memory the tables need:
+**[docs/devices.md](docs/devices.md)**.
 
 ### Verify Installation
 
