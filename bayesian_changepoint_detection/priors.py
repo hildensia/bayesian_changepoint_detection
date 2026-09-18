@@ -17,10 +17,14 @@ def const_prior(
     device: Optional[Union[str, torch.device]] = None
 ) -> Union[float, torch.Tensor]:
     """
-    Constant prior probability for changepoints.
-    
-    Returns the same log probability for all time points, representing
-    a uniform prior over changepoint locations.
+    Constant prior on segment length.
+
+    Returns ``log(p)`` for every length. This is not a probability mass
+    function on its own; it is the conventional choice of the original
+    library, used as ``partial(const_prior, p=1 / (n + 1))`` for a series of
+    ``n`` observations. ``offline_changepoint_detection`` needs the prior mass
+    on lengths ``1 .. n - 1`` to stay below 1, i.e. ``p * (n - 1) < 1``, and
+    raises otherwise.
     
     Parameters
     ----------
@@ -50,8 +54,9 @@ def const_prior(
     
     Notes
     -----
-    The constant prior assumes that changepoints are equally likely
-    at any time point in the series.
+    Under this prior every segmentation with the same number of changepoints
+    has the same prior probability, regardless of where the changepoints
+    fall.
     """
     if not 0 < p <= 1:
         raise ValueError("Probability p must be between 0 and 1")
@@ -72,57 +77,62 @@ def geometric_prior(
     device: Optional[Union[str, torch.device]] = None
 ) -> Union[float, torch.Tensor]:
     """
-    Geometric prior for changepoint detection.
-    
-    Models the time between changepoints as following a geometric distribution,
-    which is the discrete analogue of an exponential distribution.
-    
+    Geometric prior on segment length.
+
+    ``P(length = t) = (1 - p)^(t - 1) p`` for ``t >= 1``: the number of
+    trials up to and including the first success when each observation ends
+    the segment with probability ``p``. The mean segment length is ``1 / p``.
+    Lengths ``t <= 0`` are impossible and get log probability ``-inf``.
+
     Parameters
     ----------
     t : int or torch.Tensor
-        Time index or tensor of time indices (number of trials).
+        Segment length(s).
     p : float, optional
-        Probability of success (changepoint) at each trial (default: 0.25).
-        Must be between 0 and 1.
+        Probability that a segment ends at each observation (default: 0.25).
+        Must be in ``(0, 1]``.
     device : str, torch.device, or None, optional
         Device to place the output tensor on.
-        
+
     Returns
     -------
     float or torch.Tensor
-        Log probability value(s) from the geometric distribution.
-        
+        Log probability value(s).
+
     Examples
     --------
-    >>> # Single time point
-    >>> log_prob = geometric_prior(3, p=0.1)
-    
-    >>> # Multiple time points
-    >>> t = torch.arange(1, 11)  # 1 to 10
-    >>> log_probs = geometric_prior(t, p=0.2)
-    
+    >>> import math
+    >>> math.isclose(geometric_prior(1, p=0.1), math.log(0.1))
+    True
+    >>> math.isclose(geometric_prior(3, p=0.1), math.log(0.9 * 0.9 * 0.1))
+    True
+    >>> geometric_prior(torch.arange(1, 11), p=0.2).shape
+    torch.Size([10])
+
     Notes
     -----
-    The geometric distribution models the number of trials needed for
-    the first success, making it suitable for modeling inter-arrival
-    times between changepoints.
+    ``torch.distributions.Geometric`` counts *failures before* the first
+    success (support ``0, 1, 2, ...``), so it is evaluated at ``t - 1``. The
+    pre-PyTorch versions of this library used the same ``(1 - p)^(t - 1) p``
+    form.
     """
     if not 0 < p <= 1:
         raise ValueError("Probability p must be between 0 and 1")
-    
+
     device = get_device(device)
-    
+    geom_dist = dist.Geometric(probs=torch.tensor(p, device=device, dtype=torch.float32))
+
     if isinstance(t, int):
-        if t <= 0:
-            raise ValueError("Time index t must be positive for geometric prior")
-        geom_dist = dist.Geometric(probs=torch.tensor(p, device=device))
-        return geom_dist.log_prob(torch.tensor(t, device=device)).item()
-    else:
-        t_tensor = ensure_tensor(t, device=device)
-        if torch.any(t_tensor <= 0):
-            raise ValueError("All time indices must be positive for geometric prior")
-        geom_dist = dist.Geometric(probs=torch.tensor(p, device=device))
-        return geom_dist.log_prob(t_tensor)
+        if t < 1:
+            return float('-inf')
+        return geom_dist.log_prob(torch.tensor(t - 1, device=device, dtype=torch.float32)).item()
+
+    t_tensor = ensure_tensor(t, device=device).to(torch.float32)
+    log_probs = torch.full_like(t_tensor, float('-inf'))
+    valid = t_tensor >= 1
+    if torch.any(valid):
+        log_probs[valid] = geom_dist.log_prob(t_tensor[valid] - 1)
+    return log_probs
 
 
 def negative_binomial_prior(
@@ -132,70 +142,72 @@ def negative_binomial_prior(
     device: Optional[Union[str, torch.device]] = None
 ) -> Union[float, torch.Tensor]:
     """
-    Negative binomial prior for changepoint detection.
-    
-    Models the number of trials needed to achieve k successes (changepoints),
-    generalizing the geometric distribution.
-    
+    Negative binomial prior on segment length.
+
+    ``P(length = t) = C(t - 1, k - 1) p^k (1 - p)^(t - k)`` for ``t >= k``:
+    the number of trials needed to obtain ``k`` successes when each trial
+    succeeds with probability ``p``. The mean segment length is ``k / p``.
+    Lengths ``t < k`` are impossible and get log probability ``-inf``. With
+    ``k = 1`` this is exactly ``geometric_prior``.
+
     Parameters
     ----------
     t : int or torch.Tensor
-        Time index or tensor of time indices (number of trials).
+        Segment length(s).
     k : int, optional
-        Number of successes (changepoints) to achieve (default: 1).
-        Must be positive.
+        Number of successes required (default: 1). Must be positive.
     p : float, optional
-        Probability of success at each trial (default: 0.25).
-        Must be between 0 and 1.
+        Success probability of each trial (default: 0.25). Must be in
+        ``(0, 1]``.
     device : str, torch.device, or None, optional
         Device to place the output tensor on.
-        
+
     Returns
     -------
     float or torch.Tensor
-        Log probability value(s) from the negative binomial distribution.
-        
+        Log probability value(s).
+
     Examples
     --------
-    >>> # Single time point
-    >>> log_prob = negative_binomial_prior(5, k=2, p=0.1)
-    
-    >>> # Multiple time points
-    >>> t = torch.arange(1, 11)
-    >>> log_probs = negative_binomial_prior(t, k=3, p=0.2)
-    
+    >>> import math
+    >>> math.isclose(negative_binomial_prior(3, k=2, p=0.5), math.log(2 * 0.25 * 0.5))
+    True
+    >>> negative_binomial_prior(1, k=2, p=0.5)
+    -inf
+    >>> negative_binomial_prior(torch.arange(1, 11), k=3, p=0.2).shape
+    torch.Size([10])
+
     Notes
     -----
-    When k=1, the negative binomial distribution reduces to the geometric
-    distribution. Higher values of k model scenarios where multiple
-    changepoints must occur before the process is considered complete.
+    Computed in closed form with ``lgamma`` rather than through
+    ``torch.distributions.NegativeBinomial``, whose ``probs`` is the
+    probability of the *counted* outcome (the complement of ``p`` here);
+    versions 1.0.x used that class with ``probs=p`` and therefore had ``p``
+    and ``1 - p`` swapped. Equivalent to ``scipy.stats.nbinom(k, p).pmf(t - k)``.
     """
     if not 0 < p <= 1:
         raise ValueError("Probability p must be between 0 and 1")
     if k <= 0:
         raise ValueError("Number of successes k must be positive")
-    
+
     device = get_device(device)
-    
-    if isinstance(t, int):
-        if t < k:
-            return float('-inf')  # Impossible to have k successes in fewer than k trials
-        nb_dist = dist.NegativeBinomial(
-            total_count=torch.tensor(k, device=device, dtype=torch.float32),
-            probs=torch.tensor(p, device=device)
+    scalar = isinstance(t, int)
+    # Evaluate in float64 on the CPU (lgamma differences lose digits in
+    # float32, and MPS has no float64), then move to the requested device.
+    t_tensor = torch.tensor([t], dtype=torch.float64) if scalar \
+        else ensure_tensor(t, device="cpu").to(torch.float64)
+    kk = torch.tensor(float(k), dtype=torch.float64)
+    pp = torch.tensor(float(p), dtype=torch.float64)
+
+    log_probs = torch.full_like(t_tensor, float('-inf'))
+    valid = t_tensor >= k
+    if torch.any(valid):
+        tv = t_tensor[valid]
+        # log C(t-1, k-1) + k log p + (t-k) log(1-p); xlogy keeps p = 1 finite.
+        log_probs[valid] = (
+            torch.lgamma(tv) - torch.lgamma(kk) - torch.lgamma(tv - kk + 1)
+            + kk * torch.log(pp)
+            + torch.xlogy(tv - kk, 1 - pp)
         )
-        return nb_dist.log_prob(torch.tensor(t - k, device=device)).item()
-    else:
-        t_tensor = ensure_tensor(t, device=device)
-        # Set impossible cases to -inf
-        log_probs = torch.full_like(t_tensor, float('-inf'), dtype=torch.float32)
-        valid_mask = t_tensor >= k
-        
-        if torch.any(valid_mask):
-            nb_dist = dist.NegativeBinomial(
-                total_count=torch.tensor(k, device=device, dtype=torch.float32),
-                probs=torch.tensor(p, device=device)
-            )
-            log_probs[valid_mask] = nb_dist.log_prob(t_tensor[valid_mask] - k)
-        
-        return log_probs
+    log_probs = log_probs.to(device=device, dtype=torch.float32)
+    return log_probs.item() if scalar else log_probs

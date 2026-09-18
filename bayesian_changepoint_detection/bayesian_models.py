@@ -42,8 +42,12 @@ def offline_changepoint_detection(
     data : torch.Tensor
         Time series data of shape [T] or [T, D] where T is time and D is dimensions.
     prior_function : callable
-        Function that returns log prior probability for a segment of given length.
-        Should take an integer (segment length) and return a float (log probability).
+        Log prior probability mass of a segment length: ``prior_function(l)``
+        returns ``log P(length = l)`` for ``l = 1 .. T`` (Fearnhead's ``g``).
+        Use ``const_prior``, ``geometric_prior`` or ``negative_binomial_prior``
+        with ``functools.partial``. The mass on lengths ``1 .. T - 1`` must be
+        below 1 (always true for a proper distribution; for ``const_prior``
+        this means ``p * (T - 1) < 1``).
     likelihood_model : OfflineLikelihood
         Likelihood model for computing segment probabilities.
     truncate : float, optional
@@ -82,7 +86,25 @@ def offline_changepoint_detection(
     -----
     This algorithm has O(T^2) time complexity in the worst case, but the truncation
     parameter can make it approximately O(T) for most practical cases.
-    
+
+    Model (Fearnhead 2006, section 2): segment lengths are i.i.d. with mass
+    function ``g``, except the last segment, whose length is only known to be
+    at least what is observed, ``P(length >= l) = 1 - G(l - 1)`` with
+    ``G(l) = sum_{i <= l} g(i)``. Segments are independent given the
+    changepoints. With ``P[t, s]`` the log marginal likelihood of
+    ``data[t:s+1]``, the backward recursion (eq. 2 of the paper, 0-indexed) is
+
+        Q[t] = sum_{s=t}^{T-2} P[t, s] Q[s+1] g(s+1-t)  +  P[t, T-1] (1 - G(T-1-t))
+
+    and the changepoint posteriors are ``Pcp[0, t] = P[0, t] Q[t+1] g(t+1) / Q[0]``
+    for the first changepoint (first segment ``data[0:t+1]`` has length
+    ``t + 1``) and, for the ``j``-th, a sum over the previous changepoint ``s``
+    of ``Pcp[j-1, s] P[s+1, t] Q[t+1] g(t-s) / Q[s+1]``. Versions up to 1.0.x
+    evaluated ``g`` at length minus one in the first row, paired ``g`` with
+    the wrong segment length in the later rows, and included a "length 0"
+    term in ``G``; none of that is visible with ``const_prior``, all of it is
+    with the geometric and negative binomial priors.
+
     References
     ----------
     Fearnhead, P. (2006). Exact and efficient Bayesian inference for multiple
@@ -100,6 +122,10 @@ def offline_changepoint_detection(
     dtype = torch.float64
 
     n = data.shape[0]  # First dimension is time
+    if n == 0:
+        raise ValueError("data must contain at least one observation")
+    if not bool(torch.isfinite(data).all()):
+        raise ValueError("data contains NaN or Inf; remove or impute them first")
 
     # Precompute per-dataset sufficient statistics (cumulative sums) so that
     # every pdf_rows call below is a single vectorized pass. The caller's
@@ -115,13 +141,24 @@ def offline_changepoint_detection(
 
     # Initialize arrays
     Q = torch.zeros(n, device=device, dtype=dtype)
-    g = torch.zeros(n, device=device, dtype=dtype)
     P = torch.full((n, n), float('-inf'), device=device, dtype=dtype)
 
-    # Compute prior probabilities in log space
-    for t in range(n):
-        g[t] = prior_function(t)
+    # Segment-length prior in log space, indexed by length: g[l] = log g(l)
+    # for l = 1 .. n; a segment of length 0 is impossible, so g[0] = -inf and
+    # G[l] = log sum_{i=1}^{l} g(i) comes straight out of the cumulative sum.
+    g = torch.full((n + 1,), float('-inf'), device=device, dtype=dtype)
+    for length in range(1, n + 1):
+        g[length] = float(prior_function(length))
     G = torch.logcumsumexp(g, dim=0)
+    if n > 1 and bool(G[n - 1] > 1e-12):
+        raise ValueError(
+            "prior_function puts total mass "
+            f"{torch.exp(G[n - 1]).item():.4g} > 1 on segment lengths "
+            f"1..{n - 1}; it must be a (sub-)probability mass function on "
+            "lengths. For const_prior use p < 1 / (T - 1), e.g. p = 1 / (T + 1)."
+        )
+    # log(1 - G(l)) for every l, stable all the way up to G = 1 (-> -inf).
+    log_one_minus_G = torch.log(-torch.expm1(torch.clamp(G, max=0.0)))
 
     # Initialize the last time point
     P[n - 1, n - 1] = likelihood_model.pdf(data, n - 1, n)
@@ -149,33 +186,31 @@ def offline_changepoint_detection(
             cutoff = summand.shape[0] - 1
         P_next_cp = running[cutoff]
 
-        # Compute (1 - G) in numerically stable way
-        if G[n - 1 - t] < -1e-15:  # exp(-1e-15) ≈ 0.99999...
-            antiG = torch.log(1 - torch.exp(G[n - 1 - t]))
-        else:
-            # For G close to 1, use approximation (1 - G) ≈ -log(G)
-            antiG = torch.log(-G[n - 1 - t])
-
-        # Combine changepoint and no-changepoint probabilities
-        Q[t] = torch.logaddexp(P_next_cp, P[t, n - 1] + antiG)
+        # Last segment data[t:] has length n - t; its prior probability is
+        # P(length >= n - t) = 1 - G(n - 1 - t).
+        Q[t] = torch.logaddexp(P_next_cp, P[t, n - 1] + log_one_minus_G[n - 1 - t])
 
     # Compute changepoint probability matrix
     Pcp = torch.full((n - 1, n - 1), float('-inf'), device=device, dtype=dtype)
 
-    # First changepoint probabilities
+    # First changepoint at t: the first segment is data[0:t+1], length t + 1.
     if n > 1:
-        Pcp[0, :] = _nan_to_neg_inf(P[0, :n - 1] + Q[1:] + g[:n - 1] - Q[0])
+        Pcp[0, :] = _nan_to_neg_inf(P[0, :n - 1] + Q[1:] + g[1:n] - Q[0])
 
-    # Subsequent changepoint probabilities. For each j the inner loop over t
-    # is one masked logsumexp over a [m, m] matrix M with
-    # M[i, t-j] = Pcp[j-1, j-1+i] + g[i] - Q[j+i] + P[j+i, t] + Q[t+1],
-    # restricted to i <= t - j.
+    # Subsequent changepoints. For each j the sum over the previous
+    # changepoint s = j-1+i (rows) for every t = j+c (columns) is one masked
+    # logsumexp over an [m, m] matrix
+    #   M[i, c] = Pcp[j-1, s] - Q[s+1] + P[s+1, t] + Q[t+1] + g(t - s),
+    # where the segment data[s+1:t+1] has length t - s = c - i + 1 >= 1,
+    # i.e. only i <= c contributes.
     for j in range(1, n - 1):
         m = n - 1 - j
-        head = Pcp[j - 1, j - 1:n - 2] + g[:m] - Q[j:n - 1]  # [m]
-        M = head.unsqueeze(1) + P[j:n - 1, j:n - 1] + Q[j + 1:].unsqueeze(0)
-        mask = torch.ones(m, m, dtype=torch.bool, device=device).triu()
-        M = M.masked_fill(~mask, float('-inf'))
+        head = Pcp[j - 1, j - 1:n - 2] - Q[j:n - 1]  # [m], indexed by i
+        rows = torch.arange(m, device=device).unsqueeze(1)
+        cols = torch.arange(m, device=device).unsqueeze(0)
+        length = (cols - rows + 1).clamp(min=0)     # 0 where i > c -> g[0] = -inf
+        M = head.unsqueeze(1) + P[j:n - 1, j:n - 1] + Q[j + 1:].unsqueeze(0) + g[length]
+        M = M.masked_fill(rows > cols, float('-inf'))
         Pcp[j, j:] = _nan_to_neg_inf(torch.logsumexp(M, dim=0))
 
     return Q, P, Pcp
