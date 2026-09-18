@@ -519,10 +519,14 @@ is unmeasured.
 
 See the `examples/` directory for complete examples:
 
-- `examples/basic_usage.py`: Simple univariate example
-- `examples/multivariate_example.py`: Multivariate time series
-- `examples/gpu_acceleration.py`: GPU usage examples
-- `examples/Example_Code.ipynb`: Jupyter notebook tutorial
+- `examples/simple_example.py`: online and offline detection on one series, with a figure
+- `examples/basic_usage.py`: simple univariate example
+- `examples/multivariate_example.py`: multivariate time series
+- `examples/gpu_acceleration.py`: device selection and CPU/GPU comparison
+- `examples/benchmark_offline.py`: offline detector timing at several lengths
+- `examples/Example_Code.ipynb`, `examples/Multivariate_Example.ipynb`: notebook tutorials
+
+The scripts run in CI on every push (headless, `MPLBACKEND=Agg`).
 
 ## Development
 

@@ -45,6 +45,33 @@ jobs:
       - name: Run tests
         run: pytest tests/ -q
 
+  examples:
+    # Run every example script headless, from a scratch directory, with the
+    # plot extra installed. Catches examples that drift from the API.
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+          cache: pip
+      - name: Install PyTorch (CPU), the package and the plot extra
+        run: |
+          pip install torch --index-url https://download.pytorch.org/whl/cpu
+          pip install -e ".[plot]"
+      - name: Run the examples
+        env:
+          MPLBACKEND: Agg
+        run: |
+          mkdir -p /tmp/examples-out && cd /tmp/examples-out
+          for script in simple_example basic_usage multivariate_example gpu_acceleration benchmark_offline; do
+            echo "::group::$script"
+            python "$GITHUB_WORKSPACE/examples/$script.py"
+            echo "::endgroup::"
+          done
+          ls -l /tmp/examples-out
+
   build:
     # Build the sdist and wheel, check their metadata, then install the wheel
     # into a clean environment (no repository checkout on sys.path) and run
