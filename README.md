@@ -177,6 +177,7 @@ and how much memory the tables need: [docs/devices.md](docs/devices.md).
 | `changepoint_probabilities(R, lag)` | `P(a new segment started at t)`, judged `lag` observations later |
 | `get_map_changepoints(R, min_separation=1)` | indices where the MAP run-length path starts a new segment |
 | `viterbi_changepoints(data, hazard, likelihood)` | the single most probable run-length path and its segment starts |
+| `compute_run_length_posterior(data, hazard, likelihood)` | just `R`, for code that only wants the posterior |
 | `offline_changepoint_detection(data, prior, likelihood)` | `Q` (log evidence), `P` (segment log likelihoods), `Pcp` (log probability of the j-th changepoint at t) |
 | `constant_hazard(lam, r)` | hazard `1 / lam` for every run length |
 | `const_prior`, `geometric_prior`, `negative_binomial_prior` | log prior on segment length for the offline detector |
