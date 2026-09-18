@@ -20,6 +20,21 @@ pip install -e ".[dev]"                             # or: uv pip install -e ".[d
 pytest
 ```
 
+Tests live in `tests/`, one file per area (`test_online_detection.py`,
+`test_priors.py`, `test_studentt_exactness.py`, ...). To run a subset:
+
+```bash
+pytest tests/test_online_detection.py          # one file
+pytest -k "multivariate and not slow"          # by name
+pytest -m "not slow"                           # skip tests marked slow
+pytest -m gpu                                  # only the GPU tests (they skip without one)
+pytest --cov=bayesian_changepoint_detection    # with coverage (needs pytest-cov, in the dev extra)
+```
+
+`slow` and `gpu` are the only registered markers (`pyproject.toml`,
+`[tool.pytest.ini_options]`); `--strict-markers` is on, so a typo in a
+marker name fails collection.
+
 The full suite takes well under a minute on CPU. On a machine with CUDA or
 Apple's MPS it can take minutes, because device selection is automatic and
 small tensors are slower on an accelerator; tests therefore pass
@@ -90,7 +105,8 @@ repository owner.
    `[X.Y.Z] — YYYY-MM-DD` heading.
 3. Open a PR with those two changes and merge it.
 4. Tag and create the GitHub release **on the upstream repository**, not on
-   a fork (the `CD` workflow and its secrets only exist upstream):
+   a fork: the workflow file is in every clone, but the PyPI secrets it
+   needs are configured only on the upstream repository:
    `git tag vX.Y.Z && git push <upstream-remote> vX.Y.Z`, then
    `gh release create vX.Y.Z --repo hildensia/bayesian_changepoint_detection --generate-notes`.
 5. The `CD` workflow (`.github/workflows/cd.yml`) builds the distribution,
@@ -99,7 +115,7 @@ repository owner.
    longer accepts; publishing the `bayescd` distribution needs a PyPI API
    token or trusted publishing configured by the project owner. Until that
    is done, expect the upload step to fail; users install from a clone of
-   the repository instead (README, "Development installation").
+   the repository instead (README, "Development installation with UV").
 
 ## Reporting issues
 
