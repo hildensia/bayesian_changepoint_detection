@@ -61,6 +61,7 @@ def reference_bocpd(x, lam, alpha0, beta0, kappa0, mu0):
     return R
 
 
+@pytest.mark.math
 @pytest.mark.parametrize("seed", [0, 1])
 def test_run_length_posterior_matches_numpy_reference(seed):
     rng = np.random.default_rng(seed)
@@ -79,6 +80,7 @@ def test_run_length_posterior_matches_numpy_reference(seed):
     assert np.array_equal(map_run_lengths.numpy(), expected.argmax(axis=0))
 
 
+@pytest.mark.math
 def test_columns_are_normalized_and_run_length_zero_equals_hazard():
     """P(r_t = 0 | x_1..t) is the hazard under a constant hazard: a known
     property of the recursion, and the reason it is not a detection signal."""
@@ -94,6 +96,7 @@ def test_columns_are_normalized_and_run_length_zero_equals_hazard():
     assert torch.allclose(R[0, 1:], torch.full((R.shape[1] - 1,), 1 / 40), atol=1e-5)
 
 
+@pytest.mark.behaviour
 def test_single_mean_shift_is_detected_at_the_right_place():
     torch.manual_seed(0)
     data = torch.cat([torch.randn(80), torch.randn(80) + 5])
@@ -114,6 +117,7 @@ def test_single_mean_shift_is_detected_at_the_right_place():
     assert probs[1:80].max() < 0.1 and probs[81:].max() < 0.1
 
 
+@pytest.mark.behaviour
 def test_no_changepoint_series_reports_nothing():
     torch.manual_seed(3)
     data = torch.randn(200)
@@ -129,6 +133,7 @@ def test_no_changepoint_series_reports_nothing():
     assert changepoint_probabilities(R, lag=10)[1:].max() < 0.2
 
 
+@pytest.mark.behaviour
 def test_multiple_changes_with_min_separation():
     torch.manual_seed(0)
     data = torch.cat(
@@ -151,6 +156,7 @@ def test_multiple_changes_with_min_separation():
         assert abs(got - truth) <= 3
 
 
+@pytest.mark.behaviour
 def test_changepoint_probabilities_validates_lag():
     R = torch.eye(5)
     with pytest.raises(ValueError):
@@ -158,12 +164,14 @@ def test_changepoint_probabilities_validates_lag():
     assert changepoint_probabilities(R, lag=0).shape == (5,)
 
 
+@pytest.mark.behaviour
 def test_get_map_changepoints_threshold_is_deprecated():
     R = torch.eye(4)
     with pytest.warns(DeprecationWarning):
         get_map_changepoints(R, threshold=0.5)
 
 
+@pytest.mark.behaviour
 def test_multivariate():
     """Ten-dimensional mean shifts at t=50, 100, 150 (from the original suite)."""
     np.random.seed(seed=34)
@@ -187,6 +195,7 @@ def test_multivariate():
         assert abs(got - truth) <= 5
 
 
+@pytest.mark.behaviour
 def test_univariate():
     """Mean shift at t=50; the MAP run length must drop sharply there
     (the assertion the original test.py made before the 1.0 migration)."""
@@ -201,6 +210,7 @@ def test_univariate():
     assert maxes[50] - maxes[51] > 40
 
 
+@pytest.mark.behaviour
 def test_input_validation():
     """Same contract as the offline detector and viterbi_changepoints: an
     empty series and non-finite values raise instead of yielding a 1x1
@@ -227,6 +237,7 @@ def test_input_validation():
         )
 
 
+@pytest.mark.behaviour
 def test_accepts_lists_arrays_and_other_dtypes():
     """ensure_tensor coerces lists, NumPy arrays, float64 and integer input;
     the recursion runs in float32 either way."""

@@ -35,6 +35,8 @@ from bayesian_changepoint_detection.bayesian_models import (
 )
 from bayesian_changepoint_detection.priors import const_prior
 
+pytestmark = pytest.mark.behaviour
+
 # --- fixed-seed datasets (identical to the golden-generation script) --------
 
 

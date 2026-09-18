@@ -24,6 +24,8 @@ from bayesian_changepoint_detection.offline_likelihoods import (
 from bayesian_changepoint_detection.online_likelihoods import MultivariateT, StudentT
 from bayesian_changepoint_detection.priors import const_prior
 
+pytestmark = pytest.mark.behaviour
+
 
 class TestIntegration:
     """Integration tests for the complete system."""

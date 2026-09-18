@@ -46,6 +46,7 @@ def _series(n, seed, dims):
     return torch.randn(n, dims) + shift
 
 
+@pytest.mark.math
 @pytest.mark.parametrize("prior_name", ["const", "geometric", "negative_binomial"])
 @pytest.mark.parametrize("n", [1, 2, 3, 5, 8])
 @pytest.mark.parametrize("seed", [0, 1])
@@ -67,6 +68,7 @@ def test_matches_exhaustive_enumeration_univariate(prior_name, n, seed):
         assert np.all(np.isneginf(Pcp.numpy()[~finite]))
 
 
+@pytest.mark.math
 @pytest.mark.parametrize("prior_name", ["const", "geometric", "negative_binomial"])
 @pytest.mark.parametrize("n", [2, 4, 7])
 def test_matches_exhaustive_enumeration_multivariate(prior_name, n):
@@ -85,6 +87,7 @@ def test_matches_exhaustive_enumeration_multivariate(prior_name, n):
     assert np.allclose(torch.exp(Pcp).sum(0).numpy(), cp_ref, atol=1e-9)
 
 
+@pytest.mark.behaviour
 def test_geometric_prior_is_usable_end_to_end():
     """1.0.x raised ValueError here because the recursion evaluated the prior
     at length 0, which geometric_prior rejected."""
@@ -100,6 +103,7 @@ def test_geometric_prior_is_usable_end_to_end():
     assert abs(int(torch.argmax(cp)) - 29) <= 1
 
 
+@pytest.mark.behaviour
 def test_legacy_truncation_is_off_by_default_and_was_wrong():
     """With multivariate likelihoods the legacy rule (cut the sum at the
     first term 40 nats below the running sum) fired inside the true segment
@@ -145,6 +149,7 @@ def test_legacy_truncation_is_off_by_default_and_was_wrong():
     assert torch.exp(Pcp_legacy).sum(0).max() > 1e6
 
 
+@pytest.mark.behaviour
 class TestEdgeCases:
     def _run(self, data, prior=None):
         prior = prior or partial(const_prior, p=1 / (max(len(data), 1) + 1))
