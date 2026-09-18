@@ -160,3 +160,41 @@ def test_scale_property_is_the_inverse_of_the_state():
     eye = torch.eye(3).expand(model.scale_inv.shape[0], 3, 3)
     assert torch.allclose(torch.bmm(model.scale, model.scale_inv), eye, atol=1e-4)
     assert torch.allclose(model.scale[0], model.scale0, atol=1e-6)
+
+
+def test_offline_and_online_multivariate_t_defaults_are_the_same_prior():
+    """The offline MultivariateT's ``Psi0`` is the covariance-side scale
+    (``inv(W)`` of the online class). With the defaults on both sides the
+    chain-rule product of online one-step predictives over a segment must
+    equal the offline closed-form marginal of that segment. Up to 1.1.0 the
+    offline default was ``I`` instead of ``dof0 * I``, a prior ``dof0``
+    times tighter than the online default (issue #75)."""
+    from bayesian_changepoint_detection import offline_likelihoods
+
+    torch.manual_seed(0)
+    d = 3
+    X = torch.randn(8, d) + 1.0
+    online = MultivariateT(dims=d, device="cpu")
+    chain = 0.0
+    for x in X:
+        chain += online.pdf(x)[-1].item()  # longest run: the whole prefix
+        online.update_theta(x)
+    offline = offline_likelihoods.MultivariateT(device="cpu")
+    offline.setup(X.double())
+    assert abs(chain - offline.pdf(X.double(), 0, len(X))) < 1e-3
+
+    # and the documented rule Psi0 = dof0 * C matches scale = inv(C) / dof
+    C = torch.tensor([[2.0, 0.3, 0.0], [0.3, 1.0, 0.1], [0.0, 0.1, 0.5]])
+    dof = d + 1
+    online = MultivariateT(
+        dims=d, dof=dof, scale=torch.linalg.inv(C) / dof, device="cpu"
+    )
+    chain = 0.0
+    for x in X:
+        chain += online.pdf(x)[-1].item()
+        online.update_theta(x)
+    offline = offline_likelihoods.MultivariateT(
+        dof0=dof, Psi0=dof * C.double(), device="cpu"
+    )
+    offline.setup(X.double())
+    assert abs(chain - offline.pdf(X.double(), 0, len(X))) < 1e-3
