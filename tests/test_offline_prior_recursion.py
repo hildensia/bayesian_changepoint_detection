@@ -53,7 +53,7 @@ def test_matches_exhaustive_enumeration_univariate(prior_name, n, seed):
     prior = _priors(n)[prior_name]
     data = _series(n, seed, 1)
     Q, P, Pcp = offline_changepoint_detection(
-        data, prior, StudentT(device="cpu"), truncate=float("-inf"), device="cpu"
+        data, prior, StudentT(device="cpu"), device="cpu"
     )
     log_q0, cp_ref, pcp_ref = reference_offline_posterior(
         P.numpy(), lambda length: float(prior(length))
@@ -76,7 +76,6 @@ def test_matches_exhaustive_enumeration_multivariate(prior_name, n):
         data,
         prior,
         IndependentFeaturesLikelihood(device="cpu"),
-        truncate=float("-inf"),
         device="cpu",
     )
     log_q0, cp_ref, _ = reference_offline_posterior(
@@ -101,17 +100,40 @@ def test_geometric_prior_is_usable_end_to_end():
     assert abs(int(torch.argmax(cp)) - 29) <= 1
 
 
-def test_default_truncation_matches_exact_sum():
-    torch.manual_seed(1)
-    data = torch.cat([torch.randn(40), torch.randn(40) + 3, torch.randn(40) - 2])
-    prior = partial(const_prior, p=1 / (len(data) + 1))
-    kwargs = dict(likelihood_model=StudentT(device="cpu"), device="cpu")
-    Q_t, _, Pcp_t = offline_changepoint_detection(data, prior, **kwargs)
-    Q_e, _, Pcp_e = offline_changepoint_detection(
-        data, prior, truncate=float("-inf"), **kwargs
+def test_legacy_truncation_is_off_by_default_and_was_wrong():
+    """With multivariate likelihoods the legacy rule (cut the sum at the
+    first term 40 nats below the running sum) fired inside the true segment
+    and discarded the dominant term; on this 10-D series it returned
+    changepoint "probabilities" around 1e31. The default is the exact sum."""
+    from scipy.stats import multivariate_normal
+
+    from bayesian_changepoint_detection.offline_likelihoods import MultivariateT
+
+    np.random.seed(34)
+    data = torch.tensor(
+        np.vstack(
+            [
+                multivariate_normal.rvs([0] * 10, size=50),
+                multivariate_normal.rvs([4] * 10, size=50),
+                multivariate_normal.rvs([0] * 10, size=50),
+                multivariate_normal.rvs([-4] * 10, size=50),
+            ]
+        )
     )
-    assert abs(Q_t[0].item() - Q_e[0].item()) < 1e-8
-    assert torch.allclose(torch.exp(Pcp_t).sum(0), torch.exp(Pcp_e).sum(0), atol=1e-8)
+    prior = partial(const_prior, p=1 / (len(data) + 1))
+    _, _, Pcp = offline_changepoint_detection(
+        data, prior, MultivariateT(device="cpu"), device="cpu"
+    )
+    probs = torch.exp(Pcp).sum(0)
+    assert probs.max() <= 1 + 1e-9
+    assert torch.exp(Pcp[0]).sum().item() == pytest.approx(1.0, abs=1e-6)
+    assert torch.where(probs > 0.5)[0].tolist() == [49, 99, 149]
+
+    with pytest.warns(DeprecationWarning, match="truncate"):
+        _, _, Pcp_legacy = offline_changepoint_detection(
+            data, prior, MultivariateT(device="cpu"), truncate=-40.0, device="cpu"
+        )
+    assert torch.exp(Pcp_legacy).sum(0).max() > 1e6  # the bug, reproduced on request
 
 
 class TestEdgeCases:
