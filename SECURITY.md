@@ -13,9 +13,9 @@ problems.
 
 GitHub's private vulnerability reporting is **not enabled** on this repository
 (checked 2026-09-18; enabling it needs the repository owner). Until it is,
-report privately by email to the maintainer listed in
-[`.github/CODEOWNERS`](.github/CODEOWNERS): el.murdo@gmail.com, with
-"bayesian_changepoint_detection security" in the subject.
+report privately by email to the maintainer (`@estcarisimo`, the code
+owner in [`.github/CODEOWNERS`](.github/CODEOWNERS)) at el.murdo@gmail.com,
+with "bayesian_changepoint_detection security" in the subject.
 
 Please include:
 
@@ -58,8 +58,10 @@ In scope:
 
 Out of scope:
 
-- Memory or time exhaustion from very long series; the algorithms are O(T²)
-  in time and memory by design and the documentation says so.
+- Memory or time exhaustion from very long series. Both algorithms allocate
+  a matrix of size about T × T for a series of length T (the run-length
+  posterior `R` online, `P` offline) and the online docstring states
+  the O(T²) time cost, so quadratic growth is by design.
 - Vulnerabilities in PyTorch, NumPy or SciPy that do not depend on how this
   library uses them; please report those upstream.
 

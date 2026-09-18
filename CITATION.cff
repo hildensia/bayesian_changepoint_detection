@@ -19,7 +19,7 @@ keywords:
   - time-series
   - pytorch
 references:
-  - type: article
+  - type: unpublished
     title: "Bayesian online changepoint detection"
     authors:
       - family-names: Adams
@@ -28,6 +28,7 @@ references:
         given-names: David J. C.
     year: 2007
     url: "https://arxiv.org/abs/0710.3742"
+    notes: "arXiv:0710.3742 [stat.ML]"
   - type: article
     title: "Exact and efficient Bayesian inference for multiple changepoint problems"
     authors:
