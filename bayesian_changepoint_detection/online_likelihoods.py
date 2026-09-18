@@ -242,6 +242,17 @@ class MultivariateT(BaseLikelihood):
         to encode a prior covariance ``C`` pass ``scale = inv(C) / dof``.
     device : str, torch.device, or None, optional
         Device to place tensors on.
+
+    Attributes
+    ----------
+    scale_inv : torch.Tensor
+        The state actually maintained: ``T = W^{-1}`` for every run length,
+        shape ``[t, dims, dims]`` (Murphy 2007, eq. 255). The update is the
+        rank-one sum ``T + kappa/(kappa+1) (x-mu)(x-mu)^T``; the predictive
+        uses a Cholesky factor of ``T``. No matrix is inverted per step.
+    scale : torch.Tensor
+        ``W = inv(scale_inv)`` per run length, computed on access for
+        compatibility; not used internally.
         
     Examples
     --------
@@ -290,12 +301,46 @@ class MultivariateT(BaseLikelihood):
         self.kappa0 = kappa
         self.mu0 = mu.clone()
         self.scale0 = scale.clone()
-        
+        # The recursion runs on T = W^{-1}; invert the prior once, here.
+        # (float64 on the CPU: MPS has no float64, and this runs once.)
+        self.scale_inv0 = torch.linalg.inv(scale.detach().cpu().double()).to(
+            device=self.device, dtype=torch.float32
+        )
+
         # Initialize parameter arrays (will grow over time)
         self.dof = torch.tensor([dof], device=self.device, dtype=torch.float32)
         self.kappa = torch.tensor([kappa], device=self.device, dtype=torch.float32)
         self.mu = mu.unsqueeze(0)  # Shape: [1, dims]
-        self.scale = scale.unsqueeze(0)  # Shape: [1, dims, dims]
+        self.scale_inv = self.scale_inv0.unsqueeze(0)  # Shape: [1, dims, dims]
+
+    @property
+    def scale(self) -> torch.Tensor:
+        """Wishart scale ``W`` per run length (``inv(scale_inv)``), for inspection."""
+        return torch.linalg.inv(self.scale_inv)
+
+    def _cholesky(self) -> torch.Tensor:
+        """Lower Cholesky factor of ``scale_inv`` for every run length.
+
+        ``T`` only ever grows by positive semi-definite rank-one terms from an
+        SPD prior, so it is SPD in exact arithmetic; if float32 rounding on a
+        long, badly scaled run still breaks the factorization, retry once with
+        a jitter proportional to the matrix scale rather than fail.
+        """
+        L, info = torch.linalg.cholesky_ex(self.scale_inv)
+        if bool((info != 0).any()):
+            trace = torch.diagonal(self.scale_inv, dim1=-2, dim2=-1).sum(-1)
+            jitter = (1e-6 * trace / self.dims).clamp(min=1e-6)
+            eye = torch.eye(self.dims, device=self.device, dtype=torch.float32)
+            L, info = torch.linalg.cholesky_ex(
+                self.scale_inv + jitter.unsqueeze(-1).unsqueeze(-1) * eye
+            )
+            if bool((info != 0).any()):
+                raise torch.linalg.LinAlgError(
+                    "MultivariateT: the inverse Wishart scale is not positive "
+                    "definite for some run length; check the data scale or "
+                    "pass a better-conditioned prior `scale`."
+                )
+        return L
     
     def pdf(self, data: torch.Tensor) -> torch.Tensor:
         """
@@ -319,22 +364,22 @@ class MultivariateT(BaseLikelihood):
 
         # Posterior predictive of the Normal-Wishart model (Murphy 2007,
         # "Conjugate Bayesian analysis of the Gaussian distribution", eq. 258):
-        #   x ~ t_{nu - D + 1}(mu, W^{-1} (kappa + 1) / (kappa (nu - D + 1)))
-        # where ``self.scale`` is the Wishart scale matrix W on the *precision*
-        # (the same parametrization ``update_theta`` maintains, and the one the
-        # original NumPy implementation used). The t-distribution's shape
-        # matrix is therefore W^{-1} / scale_factor, and its precision is
-        # W * scale_factor, which needs no matrix inverse at all.
+        #   x ~ t_{nu - D + 1}(mu, T (kappa + 1) / (kappa (nu - D + 1)))
+        # with T = W^{-1} the state kept in ``self.scale_inv``. The shape
+        # matrix is Sigma = T / scale_factor, so with T = L L^T:
+        #   (x-mu)^T Sigma^{-1} (x-mu) = scale_factor * ||L^{-1} (x-mu)||^2
+        #   log|Sigma| = 2 sum log diag(L) - D log(scale_factor).
         t_dof = self.dof - self.dims + 1
         scale_factor = (self.kappa * t_dof) / (self.kappa + 1)
 
-        precision = self.scale * scale_factor.unsqueeze(-1).unsqueeze(-1)
-        # log|shape| = -log|W| - D log(scale_factor)
-        logdet = -torch.logdet(self.scale) - self.dims * torch.log(scale_factor)
-
-        # Mahalanobis distance for every run length
-        diff = data.unsqueeze(0) - self.mu  # [t, dims]
-        mahal_dist = torch.einsum("ti,tij,tj->t", diff, precision, diff)
+        L = self._cholesky()                                   # [t, D, D]
+        diff = data.unsqueeze(0) - self.mu                     # [t, D]
+        y = torch.linalg.solve_triangular(L, diff.unsqueeze(-1), upper=False)
+        mahal_dist = scale_factor * (y.squeeze(-1) ** 2).sum(-1)
+        logdet = (
+            2.0 * torch.log(torch.diagonal(L, dim1=-2, dim2=-1)).sum(-1)
+            - self.dims * torch.log(scale_factor)
+        )
 
         log_probs = (
             torch.lgamma((t_dof + self.dims) / 2)
@@ -368,17 +413,11 @@ class MultivariateT(BaseLikelihood):
         kappa_new = self.kappa + 1
         dof_new = self.dof + 1
         
-        # Update scale matrices
-        scale_update = (
-            self.kappa.unsqueeze(1).unsqueeze(2) / 
-            (self.kappa + 1).unsqueeze(1).unsqueeze(2)
-        ) * torch.bmm(centered.unsqueeze(2), centered.unsqueeze(1))
-        
-        # Regularized inverse to ensure numerical stability
-        inv_scale = torch.inverse(self.scale + 1e-6 * torch.eye(self.dims, device=self.device, dtype=torch.float32).unsqueeze(0))
-        scale_new = torch.inverse(
-            inv_scale + scale_update
-        )
+        # T_n = T + kappa/(kappa+1) (x-mu)(x-mu)^T  (Murphy 2007, eq. 255):
+        # a rank-one update of the inverse Wishart scale, no inversion.
+        scale_inv_new = self.scale_inv + (
+            self.kappa / (self.kappa + 1)
+        ).unsqueeze(-1).unsqueeze(-1) * torch.bmm(centered.unsqueeze(2), centered.unsqueeze(1))
         
         # Concatenate with initial parameters
         self.mu = torch.cat([self.mu0.unsqueeze(0), mu_new])
@@ -390,4 +429,4 @@ class MultivariateT(BaseLikelihood):
             torch.tensor([self.dof0], device=self.device, dtype=torch.float32),
             dof_new
         ])
-        self.scale = torch.cat([self.scale0.unsqueeze(0), scale_new])
+        self.scale_inv = torch.cat([self.scale_inv0.unsqueeze(0), scale_inv_new])
