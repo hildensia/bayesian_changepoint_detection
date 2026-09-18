@@ -29,7 +29,7 @@ def offline_changepoint_detection(
     data: torch.Tensor,
     prior_function: Callable[[int], float],
     likelihood_model: OfflineLikelihood,
-    truncate: float = -40.0,
+    truncate: float = float("-inf"),
     device: Optional[Union[str, torch.device]] = None,
 ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
     """
@@ -52,8 +52,17 @@ def offline_changepoint_detection(
     likelihood_model : OfflineLikelihood
         Likelihood model for computing segment probabilities.
     truncate : float, optional
-        Log probability threshold for truncating computation (default: -40.0).
-        More negative values = more accurate but slower computation.
+        Deprecated; default ``-inf`` (exact sum). A finite value reproduces
+        the truncation rule of versions up to 1.1.0 and of the NumPy
+        original: the sum over segment ends is cut at the first term that
+        falls ``truncate`` nats below the running sum. That rule assumed the
+        terms decay monotonically after a peak; they do not (for a segment
+        start ``t``, ends inside the true segment can be far less likely
+        than the true end, then the sequence rises again), and with
+        multivariate likelihoods the cut can discard the dominant term and
+        return changepoint "probabilities" far above 1. Since the segment
+        likelihoods are computed for every end in one vectorized call, the
+        rule also saves no work. Kept only so old results can be reproduced.
     device : str, torch.device, or None, optional
         Device to place tensors on.
 
@@ -168,8 +177,7 @@ def offline_changepoint_detection(
 
     # Dynamic programming: work backwards through time. For each start point
     # t, likelihoods of all segments [t, s] are computed in one vectorized
-    # call; the truncated logaddexp recursion (Fearnhead 2006, eq. 3) is
-    # evaluated with a running logcumsumexp instead of a Python loop.
+    # call and the sum over segment ends is one logcumsumexp.
     for t in reversed(range(n - 1)):
         # row[j] = log p(data[t:t+1+j]) for j = 0 .. n-1-t
         row = likelihood_model.pdf_rows(data, t).to(device=device, dtype=dtype)
@@ -179,13 +187,13 @@ def offline_changepoint_detection(
         summand = row[: n - 1 - t] + Q[t + 1 :] + g[1 : n - t]
         running = torch.logcumsumexp(summand, dim=0)
 
-        # Truncate the sum where later terms cannot contribute anymore
-        # (identical to breaking out of the sequential loop).
-        truncated = (summand - running) < truncate
-        if bool(truncated.any()):
-            cutoff = int(torch.nonzero(truncated)[0])
-        else:
-            cutoff = summand.shape[0] - 1
+        # Legacy truncation (see the ``truncate`` docstring): with the
+        # default -inf the full sum is used.
+        cutoff = summand.shape[0] - 1
+        if truncate > float("-inf"):
+            truncated = (summand - running) < truncate
+            if bool(truncated.any()):
+                cutoff = int(torch.nonzero(truncated)[0])
         P_next_cp = running[cutoff]
 
         # Last segment data[t:] has length n - t; its prior probability is

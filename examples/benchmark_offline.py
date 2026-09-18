@@ -39,9 +39,7 @@ def main():
         likelihood = StudentT(device="cpu")
 
         start = time.perf_counter()
-        _, _, Pcp = offline_changepoint_detection(
-            data, prior, likelihood, truncate=-40, device="cpu"
-        )
+        _, _, Pcp = offline_changepoint_detection(data, prior, likelihood, device="cpu")
         elapsed = time.perf_counter() - start
 
         probs = torch.exp(Pcp).sum(0)

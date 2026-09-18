@@ -8,10 +8,11 @@ useful too. Conventions follow <https://agents.md>.
 A PyTorch implementation of two Bayesian changepoint detection algorithms:
 
 - **Offline** (`offline_changepoint_detection`): Fearnhead (2006), posterior
-  over changepoint locations via dynamic programming over segments. Exact
-  only without truncation; the default `truncate=-40` drops terms whose
-  log contribution falls that far below the running sum, so the returned
-  posterior is a (very close) truncated approximation.
+  over changepoint locations via dynamic programming over segments. Exact:
+  the sum over segment ends is evaluated in full. The `truncate` argument
+  (default `-inf`) only exists to reproduce the truncated results of
+  versions up to 1.1.0; that rule could discard the dominant term (see
+  the docstring) and saved no work once the recursion was vectorized.
 - **Online** (`online_changepoint_detection`): Adams & MacKay (2007), a
   recursively updated posterior over *run length* (time since the last
   changepoint).

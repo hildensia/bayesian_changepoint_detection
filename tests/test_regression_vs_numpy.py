@@ -127,7 +127,6 @@ def test_xuan_detection_locations(name):
         data,
         prior,
         LIKELIHOOD_CLASSES[name](device="cpu"),
-        truncate=-40,
         device="cpu",
     )
     peaks = top_peaks(Pcp)
@@ -145,7 +144,6 @@ def test_studentt_detection_locations():
         data,
         prior,
         offline_likelihoods.StudentT(device="cpu"),
-        truncate=-40,
         device="cpu",
     )
     peaks = top_peaks(Pcp)
@@ -169,7 +167,6 @@ def test_offline_multivariate_t_detection_locations():
         data,
         prior,
         offline_likelihoods.MultivariateT(device="cpu"),
-        truncate=-40,
         device="cpu",
     )
     peaks = top_peaks(Pcp)

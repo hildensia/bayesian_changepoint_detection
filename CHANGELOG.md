@@ -74,6 +74,16 @@ All notable changes to this project are documented here. The format follows
 
 ### Fixed
 
+- `offline_changepoint_detection` evaluates the sum over segment ends in
+  full; `truncate` now defaults to `-inf` and is deprecated. The legacy
+  rule (cut at the first term 40 nats below the running sum, inherited
+  from the NumPy original) assumed the terms decay after a peak, but for a
+  start inside a segment they dip and then rise to the true end; with
+  multivariate likelihoods the cut discarded that dominant term and
+  returned changepoint "probabilities" around 1e31 (10-D example with three
+  changes: `MultivariateT` and `IndependentFeaturesLikelihood` both). Since
+  the segment likelihoods are computed for every end in one vectorized call,
+  truncation saved no work either. Univariate results are unchanged.
 - Offline recursion (`offline_changepoint_detection`) now indexes the
   segment-length prior correctly (Fearnhead 2006, eq. 2): the first
   changepoint row evaluated `g` at length minus one, the later rows paired
