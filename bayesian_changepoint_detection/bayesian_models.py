@@ -5,6 +5,7 @@ This module implements both online and offline Bayesian changepoint detection
 algorithms using PyTorch for efficient computation and GPU acceleration.
 """
 
+import math
 import warnings
 from typing import Callable, Optional, Union
 
@@ -132,6 +133,18 @@ def offline_changepoint_detection(
     data = ensure_tensor(data, device=device)
     dtype = torch.float64
 
+    legacy_truncation = math.isfinite(truncate)
+    if legacy_truncation:
+        warnings.warn(
+            "offline_changepoint_detection(truncate=...) is deprecated: the "
+            "truncation rule can discard the dominant term of the sum over "
+            "segment ends and return changepoint probabilities above 1, and "
+            "it saves no computation. Leave truncate at its default (-inf) "
+            "for the exact sum.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+
     n = data.shape[0]  # First dimension is time
     if n == 0:
         raise ValueError("data must contain at least one observation")
@@ -187,10 +200,10 @@ def offline_changepoint_detection(
         summand = row[: n - 1 - t] + Q[t + 1 :] + g[1 : n - t]
         running = torch.logcumsumexp(summand, dim=0)
 
-        # Legacy truncation (see the ``truncate`` docstring): with the
-        # default -inf the full sum is used.
+        # Legacy truncation (see the ``truncate`` docstring); anything
+        # non-finite (the -inf default, or nan) means the full sum.
         cutoff = summand.shape[0] - 1
-        if truncate > float("-inf"):
+        if legacy_truncation:
             truncated = (summand - running) < truncate
             if bool(truncated.any()):
                 cutoff = int(torch.nonzero(truncated)[0])

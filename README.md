@@ -507,7 +507,7 @@ Measured on an Apple M-series laptop, CPU, 4 threads, PyTorch 2.14:
 
 | Workload | Time |
 |---|---|
-| Offline `StudentT`, 1 000 points, `const_prior` | 2.9 s (147 s before the vectorized likelihood of 1.1.0, same changepoints) |
+| Offline `StudentT`, 1 000 points, `const_prior`, exact sum | 3.6 s (147 s before the vectorized likelihood of 1.1.0, same changepoints) |
 | Online `StudentT`, 1 000 points | 0.16 s |
 | Online `StudentT`, 5 000 points | 1.7 s |
 | Online `MultivariateT`, 10-D, 1 000 points | 0.56 s |
