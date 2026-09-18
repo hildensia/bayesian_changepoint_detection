@@ -48,7 +48,7 @@ dev = [
     "flake8>=6.1.0",
     "mypy>=1.0.0",
     "jupyter>=1.0.0",
-    "notebook>=6.4.0",
+    "notebook>=7.6.2",
 ]
 plot = [
     "numpy>=1.21.0",
