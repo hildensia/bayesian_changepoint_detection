@@ -45,6 +45,8 @@ All notable changes to this project are documented here. The format follows
 - CI workflow (GitHub Actions) running the test suite on Python 3.9–3.12.
 - `AGENTS.md` with repository conventions.
 - `CHANGELOG.md` (this file) and `.flake8`.
+- `CONTRIBUTING.md` (setup, conventions, the `master` rule, releasing) and an
+  explicit `.github/dependabot.yml` (GitHub Actions and pip, weekly, grouped).
 
 ### Fixed
 

@@ -62,7 +62,7 @@ uv run python -c "import bayesian_changepoint_detection; print('Success!')"
 
 #### Development installation with UV
 ```bash
-git clone https://github.com/estcarisimo/bayesian_changepoint_detection.git
+git clone https://github.com/hildensia/bayesian_changepoint_detection.git
 cd bayesian_changepoint_detection
 
 # Create virtual environment
@@ -101,7 +101,7 @@ pip install --upgrade pip
 pip install bayescd
 
 # Or install from source
-git clone https://github.com/estcarisimo/bayesian_changepoint_detection.git
+git clone https://github.com/hildensia/bayesian_changepoint_detection.git
 cd bayesian_changepoint_detection
 pip install -e .
 
@@ -123,7 +123,7 @@ conda install pytorch torchvision torchaudio -c pytorch
 pip install bayescd
 
 # Or from source
-git clone https://github.com/estcarisimo/bayesian_changepoint_detection.git
+git clone https://github.com/hildensia/bayesian_changepoint_detection.git
 cd bayesian_changepoint_detection
 pip install -e ".[dev]"
 ```
@@ -260,7 +260,7 @@ For contributors and developers:
 
 ```bash
 # Clone the repository
-git clone https://github.com/estcarisimo/bayesian_changepoint_detection.git
+git clone https://github.com/hildensia/bayesian_changepoint_detection.git
 cd bayesian_changepoint_detection
 
 # Option 1: Using UV (recommended)
