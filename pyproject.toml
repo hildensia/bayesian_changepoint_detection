@@ -57,7 +57,7 @@ plot = [
 ]
 docs = [
     "sphinx>=5.0.0",
-    "sphinx-rtd-theme>=1.2.0",
+    "sphinx-rtd-theme>=3.1.0",
     "numpydoc>=1.5.0",
 ]
 gpu = [
