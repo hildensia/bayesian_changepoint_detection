@@ -199,3 +199,50 @@ def test_univariate():
         device="cpu",
     )
     assert maxes[50] - maxes[51] > 40
+
+
+def test_input_validation():
+    """Same contract as the offline detector and viterbi_changepoints: an
+    empty series and non-finite values raise instead of yielding a 1x1
+    posterior or a non-finite R with MAP run length 0 (1.1.0 behaviour)."""
+    hazard = partial(constant_hazard, 50, device="cpu")
+    with pytest.raises(ValueError, match="at least one observation"):
+        online_changepoint_detection(
+            torch.zeros(0), hazard, StudentT(device="cpu"), device="cpu"
+        )
+    for bad in (float("nan"), float("inf"), float("-inf")):
+        with pytest.raises(ValueError, match="NaN or Inf"):
+            online_changepoint_detection(
+                torch.tensor([1.0, bad, 2.0]),
+                hazard,
+                StudentT(device="cpu"),
+                device="cpu",
+            )
+    with pytest.raises(ValueError, match="NaN or Inf"):
+        online_changepoint_detection(
+            torch.tensor([[1.0, 2.0], [float("nan"), 0.0]]),
+            hazard,
+            MultivariateT(dims=2, device="cpu"),
+            device="cpu",
+        )
+
+
+def test_accepts_lists_arrays_and_other_dtypes():
+    """ensure_tensor coerces lists, NumPy arrays, float64 and integer input;
+    the recursion runs in float32 either way."""
+    hazard = partial(constant_hazard, 50, device="cpu")
+    series = [0.1, 0.2, 5.0, 5.1, 5.2]
+    outs = []
+    for data in (series, np.array(series), torch.tensor(series, dtype=torch.float64)):
+        R, m = online_changepoint_detection(
+            data, hazard, StudentT(device="cpu"), device="cpu"
+        )
+        assert R.dtype == torch.float32 and R.shape == (6, 6)
+        outs.append(R)
+    assert torch.allclose(outs[0], outs[1]) and torch.allclose(
+        outs[0], outs[2], atol=1e-6
+    )
+    R_int, _ = online_changepoint_detection(
+        torch.tensor([1, 2, 3, 40, 41]), hazard, StudentT(device="cpu"), device="cpu"
+    )
+    assert torch.isfinite(R_int).all()
