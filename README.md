@@ -654,9 +654,9 @@ the covariance differently. Online `MultivariateT` takes `scale`, the
 Wishart scale `W` on the *precision*: to encode a prior covariance `C` pass
 `scale = inv(C) / dof` (default `I / dof`, unit prior covariance). Offline
 `MultivariateT` takes `Psi0`, the inverse-Wishart scale on the *covariance*
-side (`Psi0 = inv(W)`): the same prior covariance `C` is `Psi0 = dof0 * C`.
-Its default is `Psi0 = I`, which is `dof0` times tighter than the online
-default (issue #75). `mu`/`mu0` are in data units in both.
+side (`Psi0 = inv(W)`): the same prior covariance `C` is `Psi0 = dof0 * C`,
+and the default `dof0 * I` is the same unit prior covariance as online.
+`mu`/`mu0` are in data units in both.
 
 ### How do I make the detector more or less sensitive? (issue #31)
 

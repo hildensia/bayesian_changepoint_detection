@@ -20,6 +20,12 @@ All notable changes to this project are documented here. The format follows
   run-length path implies a new segment started. Its `threshold` argument is
   deprecated and ignored (it thresholded `R[0, :]`); a new `min_separation`
   argument merges nearby starts when the posterior flips between them.
+- `offline_likelihoods.MultivariateT` default prior: `Psi0` (the
+  covariance-side scale, `inv(W)`) is now `dof0 * I`, unit prior covariance,
+  the same prior as the online class; it was `I`, `dof0` times tighter (#75).
+  Changepoint locations on the multivariate test series are unchanged; a
+  spurious 0.33 bump on the 2-D regression series drops to 0.07. Explicit
+  `Psi0` arguments are unaffected.
 - `online_likelihoods.MultivariateT` default prior: the Wishart scale is now
   `I / dof`, giving unit prior covariance as the documentation always claimed.
   The previous `I` encoded a prior covariance of `I / dof`. Explicit `scale`

@@ -525,7 +525,11 @@ class MultivariateT(_CumsumLikelihood):
     mu0 : torch.Tensor, optional
         Prior mean vector (default: zero vector).
     Psi0 : torch.Tensor, optional
-        Prior scale matrix (default: identity matrix).
+        Scale matrix of the prior on the *covariance* side (the inverse of
+        the Wishart scale ``W`` used by the online ``MultivariateT``):
+        ``Psi0 = dof0 * C`` encodes a prior covariance ``C``. Default
+        ``dof0 * I``, i.e. unit prior covariance, matching the online class.
+        Versions up to 1.1.0 used ``I``, which is ``dof0`` times tighter.
     device : str, torch.device, or None, optional
         Device to place tensors on.
     cache_enabled : bool, optional
@@ -566,7 +570,8 @@ class MultivariateT(_CumsumLikelihood):
         else:
             mu0 = ensure_tensor(self.mu0, device=data.device).to(data.dtype)
         if self.Psi0 is None:
-            psi0 = torch.eye(d, dtype=data.dtype, device=data.device)
+            # Unit prior covariance: E[precision] = dof0 * Psi0^{-1} = I.
+            psi0 = dof0 * torch.eye(d, dtype=data.dtype, device=data.device)
         else:
             psi0 = ensure_tensor(self.Psi0, device=data.device).to(data.dtype)
         return dof0, mu0, psi0
