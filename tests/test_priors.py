@@ -2,9 +2,13 @@
 Tests for prior probability distributions.
 """
 
+import math
+
 import pytest
 import torch
 import numpy as np
+from scipy.stats import geom, nbinom
+
 from bayesian_changepoint_detection.priors import (
     const_prior,
     geometric_prior,
@@ -51,129 +55,94 @@ class TestConstPrior:
 
 
 class TestGeometricPrior:
-    """Test geometric prior function."""
-    
-    def test_single_timepoint(self):
-        """Test geometric prior for single time point."""
-        log_prob = geometric_prior(3, p=0.1)
-        
-        # Should be finite and reasonable
-        assert torch.isfinite(torch.tensor(log_prob))
-        assert log_prob < 0  # Log probability should be negative
-    
-    def test_multiple_timepoints(self):
-        """Test geometric prior for multiple time points."""
-        t = torch.arange(1, 11)  # 1 to 10
-        log_probs = geometric_prior(t, p=0.2)
-        
-        assert isinstance(log_probs, torch.Tensor)
-        assert log_probs.shape == (10,)
-        assert torch.isfinite(log_probs).all()
-        
-        # Probabilities should generally decrease with time
-        # (geometric distribution is decreasing)
-        assert log_probs[0] > log_probs[-1]
-    
-    def test_time_validation(self):
-        """Test time parameter validation."""
-        # Valid times
-        geometric_prior(1, p=0.1)
-        geometric_prior(torch.tensor([1, 2, 3]), p=0.1)
-        
-        # Invalid times
-        with pytest.raises(ValueError):
-            geometric_prior(0, p=0.1)
-        
-        with pytest.raises(ValueError):
-            geometric_prior(-1, p=0.1)
-        
-        with pytest.raises(ValueError):
-            geometric_prior(torch.tensor([0, 1, 2]), p=0.1)
-    
+    """geometric_prior(t, p) = (1 - p)^(t - 1) p for t >= 1 (trials to first success)."""
+
+    @pytest.mark.parametrize("p", [0.1, 0.25, 0.9])
+    def test_closed_form(self, p):
+        for t in range(1, 30):
+            expected = (t - 1) * math.log1p(-p) + math.log(p)
+            assert abs(geometric_prior(t, p=p) - expected) < 1e-5, t
+
+    def test_matches_scipy_geom(self):
+        t = torch.arange(1, 40)
+        got = geometric_prior(t, p=0.3, device="cpu").numpy()
+        assert np.allclose(got, geom(0.3).logpmf(t.numpy()), atol=1e-5)
+
+    def test_is_a_probability_mass_function(self):
+        probs = torch.exp(geometric_prior(torch.arange(1, 5000), p=0.05, device="cpu"))
+        assert abs(probs.sum().item() - 1.0) < 1e-4
+        assert probs[0] > probs[-1]
+
+    def test_p_equal_one_is_a_point_mass_at_length_one(self):
+        assert geometric_prior(1, p=1.0) == 0.0
+        assert geometric_prior(2, p=1.0) == float("-inf")
+
+    def test_impossible_lengths_are_log_zero(self):
+        """Length 0 (or negative) has probability 0, i.e. log prob -inf, the
+        same convention negative_binomial_prior uses for t < k. Versions
+        1.0.x raised instead, which made the prior unusable with
+        offline_changepoint_detection."""
+        assert geometric_prior(0, p=0.1) == float("-inf")
+        assert geometric_prior(-1, p=0.1) == float("-inf")
+        out = geometric_prior(torch.tensor([0, 1, 2]), p=0.1, device="cpu")
+        assert out[0] == float("-inf") and torch.isfinite(out[1:]).all()
+
     def test_probability_validation_geometric(self):
-        """Test probability validation for geometric prior."""
         with pytest.raises(ValueError):
             geometric_prior(1, p=0.0)
-        
         with pytest.raises(ValueError):
             geometric_prior(1, p=1.1)
 
 
 class TestNegativeBinomialPrior:
-    """Test negative binomial prior function."""
-    
-    def test_single_timepoint(self):
-        """Test negative binomial prior for single time point."""
-        log_prob = negative_binomial_prior(5, k=2, p=0.1)
-        
-        assert torch.isfinite(torch.tensor(log_prob))
-        assert log_prob < 0  # Log probability should be negative
-    
-    def test_multiple_timepoints(self):
-        """Test negative binomial prior for multiple time points."""
-        t = torch.arange(1, 11)
-        log_probs = negative_binomial_prior(t, k=2, p=0.2)
-        
-        assert isinstance(log_probs, torch.Tensor)
-        assert log_probs.shape == (10,)
-        
-        # First k-1 values should be -inf
-        assert log_probs[0] == float('-inf')  # t=1, k=2, impossible
-        assert torch.isfinite(log_probs[1:]).all()  # t>=2 should be finite
-    
+    """negative_binomial_prior(t, k, p) = C(t-1, k-1) p^k (1-p)^(t-k) for t >= k."""
+
+    @pytest.mark.parametrize("k,p", [(1, 0.25), (2, 0.25), (3, 0.5), (5, 0.9)])
+    def test_closed_form(self, k, p):
+        for t in range(k, 40):
+            expected = math.log(math.comb(t - 1, k - 1)) + k * math.log(p) + (t - k) * math.log1p(-p)
+            assert abs(negative_binomial_prior(t, k=k, p=p) - expected) < 1e-5, t
+
+    @pytest.mark.parametrize("k", [1, 2, 4])
+    def test_matches_scipy_nbinom(self, k):
+        t = torch.arange(k, 60)
+        got = negative_binomial_prior(t, k=k, p=0.3, device="cpu").numpy()
+        assert np.allclose(got, nbinom(k, 0.3).logpmf(t.numpy() - k), atol=1e-5)
+
+    def test_reduces_to_geometric_for_k_1(self):
+        """Versions 1.0.x had p and 1 - p swapped, so this did not hold."""
+        t = torch.arange(1, 30)
+        nb = negative_binomial_prior(t, k=1, p=0.3, device="cpu")
+        ge = geometric_prior(t, p=0.3, device="cpu")
+        assert torch.allclose(nb, ge, atol=1e-5)
+
+    def test_is_a_probability_mass_function(self):
+        probs = torch.exp(negative_binomial_prior(torch.arange(1, 5000), k=3, p=0.05, device="cpu"))
+        assert abs(probs.sum().item() - 1.0) < 1e-4
+
     def test_impossible_cases(self):
-        """Test handling of impossible cases (t < k)."""
-        # Single impossible case
-        log_prob = negative_binomial_prior(1, k=2, p=0.1)
-        assert log_prob == float('-inf')
-        
-        # Multiple cases with some impossible
-        t = torch.tensor([1, 2, 3, 4])
-        log_probs = negative_binomial_prior(t, k=3, p=0.1)
-        
-        assert log_probs[0] == float('-inf')  # t=1, k=3
-        assert log_probs[1] == float('-inf')  # t=2, k=3
-        assert torch.isfinite(log_probs[2])   # t=3, k=3, possible
-        assert torch.isfinite(log_probs[3])   # t=4, k=3, possible
-    
-    def test_reduction_to_geometric(self):
-        """Test that k=1 negative binomial follows expected pattern."""
-        t = torch.arange(1, 6)
-        p = 0.3
-        
-        nb_log_probs = negative_binomial_prior(t, k=1, p=p)
-        
-        # PyTorch's NegativeBinomial(k, p) counts failures before k successes
-        # So NB(t-k, k, p) = C(t-1, k-1) * p^k * (1-p)^(t-k)
-        # For k=1: NB(t-1, 1, p) = p * (1-p)^(t-1)
-        
-        # Check that consecutive differences are constant (geometric property)
-        differences = nb_log_probs[1:] - nb_log_probs[:-1]
-        
-        # All differences should be equal (within numerical tolerance)
-        assert torch.allclose(differences, differences[0], atol=1e-5)
-        
-        # For NB with our parameterization, the difference is log(p)
-        expected_diff = torch.log(torch.tensor(p))
-        assert torch.allclose(differences[0], expected_diff, atol=1e-5)
-    
+        assert negative_binomial_prior(1, k=2, p=0.1) == float("-inf")
+        out = negative_binomial_prior(torch.tensor([1, 2, 3, 4]), k=3, p=0.1, device="cpu")
+        assert out[0] == float("-inf") and out[1] == float("-inf")
+        assert torch.isfinite(out[2:]).all()
+
+    def test_p_equal_one(self):
+        assert negative_binomial_prior(2, k=2, p=1.0) == 0.0
+        assert negative_binomial_prior(3, k=2, p=1.0) == float("-inf")
+
+    def test_output_device_and_dtype(self):
+        out = negative_binomial_prior(torch.arange(1, 5), k=2, p=0.3, device="cpu")
+        assert out.device.type == "cpu" and out.dtype == torch.float32
+
     def test_parameter_validation_nb(self):
-        """Test parameter validation for negative binomial."""
-        # Valid parameters
         negative_binomial_prior(5, k=1, p=0.1)
         negative_binomial_prior(5, k=3, p=0.9)
-        
-        # Invalid k
         with pytest.raises(ValueError):
             negative_binomial_prior(5, k=0, p=0.1)
-        
         with pytest.raises(ValueError):
             negative_binomial_prior(5, k=-1, p=0.1)
-        
-        # Invalid p
         with pytest.raises(ValueError):
             negative_binomial_prior(5, k=1, p=0.0)
-        
         with pytest.raises(ValueError):
             negative_binomial_prior(5, k=1, p=1.1)
 

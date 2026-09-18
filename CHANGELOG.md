@@ -54,6 +54,24 @@ All notable changes to this project are documented here. The format follows
 
 ### Fixed
 
+- Offline recursion (`offline_changepoint_detection`) now indexes the
+  segment-length prior correctly (Fearnhead 2006, eq. 2): the first
+  changepoint row evaluated `g` at length minus one, the later rows paired
+  `g` with the wrong segment length, and the tail term `1 - G` included a
+  "length 0" term. None of this was visible with `const_prior`; with the
+  geometric and negative binomial priors the changepoint posterior was wrong.
+  Verified against an exhaustive enumeration of all segmentations
+  (`tests/test_offline_prior_recursion.py`). With `const_prior` the log
+  evidence moves by about 0.01 and changepoint locations do not move.
+- `geometric_prior` was off by one (`(1-p)^t p` instead of the documented
+  `(1-p)^(t-1) p`) and raised at length 0, which made it unusable with the
+  offline detector; `negative_binomial_prior` had `p` and `1 - p` swapped, so
+  `k = 1` did not reduce to the geometric prior. Both now match
+  `scipy.stats.geom` / `scipy.stats.nbinom`; impossible lengths return `-inf`.
+- `offline_changepoint_detection` raises a `ValueError` for empty input, for
+  `NaN`/`Inf` values, and for a length prior whose mass on lengths `1..T-1`
+  exceeds 1 (e.g. `const_prior(p=0.25)` on more than five points), instead
+  of returning `nan` evidence and all-zero changepoint probabilities.
 - Offline `StudentT` now evaluates the exact Normal-Gamma marginal likelihood
   of a segment (Murphy 2007, eqs. 95–97) instead of scoring each point under
   the posterior of the whole segment. Offline detection is 70–150x faster
