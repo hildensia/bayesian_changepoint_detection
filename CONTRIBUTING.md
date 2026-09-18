@@ -32,8 +32,10 @@ pytest --cov=bayesian_changepoint_detection    # with coverage (needs pytest-cov
 ```
 
 `slow` and `gpu` are the only registered markers (`pyproject.toml`,
-`[tool.pytest.ini_options]`); `--strict-markers` is on, so a typo in a
-marker name fails collection.
+`[tool.pytest.ini_options]`). `--strict-markers` is on, so decorating a
+test with an unregistered marker fails collection; a typo inside a `-m`
+expression does not error, it silently selects nothing, so check the
+collected count.
 
 The full suite takes well under a minute on CPU. On a machine with CUDA or
 Apple's MPS it can take minutes, because device selection is automatic and
@@ -111,11 +113,12 @@ repository owner.
    `gh release create vX.Y.Z --repo hildensia/bayesian_changepoint_detection --generate-notes`.
 5. The `CD` workflow (`.github/workflows/cd.yml`) builds the distribution,
    runs `twine check`, and uploads to PyPI on the release event. Its upload
-   step still uses the username/password secrets from 2022, which PyPI no
-   longer accepts; publishing the `bayescd` distribution needs a PyPI API
-   token or trusted publishing configured by the project owner. Until that
+   step still uses username/password secrets from 2022; PyPI uploads now
+   require an API token or trusted publishing, so publishing the `bayescd`
+   distribution needs one of those configured by the project owner. Until that
    is done, expect the upload step to fail; users install from a clone of
-   the repository instead (README, "Development installation with UV").
+   the repository instead (README, "Or install from source" under
+   "Method 2: Using pip with Virtual Environments").
 
 ## Reporting issues
 
