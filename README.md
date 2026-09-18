@@ -215,10 +215,11 @@ R, map_run_lengths = online_changepoint_detection(data, hazard_func, likelihood)
 print("Detected changepoints:", get_map_changepoints(R))
 ```
 
-**Performance Benefits:**
-- 10-100x speedup on compatible hardware
-- Especially beneficial for large datasets (>1000 points) and multivariate data
-- Automatic memory management and device detection
+**Performance note:** the online recursion is sequential, so an accelerator
+only pays off when each step is large (high dimension, long series). On an
+Apple M-series laptop the CPU is 6-30x faster than MPS for the cases in the
+FAQ below; CUDA is unmeasured (issue #43). Device detection is automatic;
+pass `device="cpu"` to opt out.
 
 📖 **For a complete GPU guide with benchmarks, multivariate examples, and memory management tips, see**
 - **[docs/gpu_offline_detection_guide.md](docs/gpu_offline_detection_guide.md)**
@@ -495,24 +496,24 @@ This library implements Bayesian changepoint detection as described in:
 
 ## Performance
 
-The PyTorch implementation provides significant performance improvements:
-
-- **Vectorized Operations**: Efficient batch computations
-- **GPU Acceleration**: 10-100x speedup on compatible hardware
-- **Memory Efficiency**: Optimized memory usage for large datasets
-- **Parallel Processing**: Multi-threaded CPU operations
+Both algorithms are O(T²) in the series length. The offline recursion is
+vectorized per start point (one `pdf_rows` call gives the likelihood of every
+segment starting there); the online recursion is vectorized over run lengths
+at each step.
 
 ### Benchmarks
 
-*Theoretical estimates, must be benchmarked*
+Measured on an Apple M-series laptop, CPU, 4 threads, PyTorch 2.14:
 
-On a typical dataset (1000 time points, univariate):
+| Workload | Time |
+|---|---|
+| Offline `StudentT`, 1 000 points, `const_prior`, `truncate=-40` | 2.9 s (147 s before the vectorized likelihood of 1.1.0, same changepoints) |
+| Online `StudentT`, 1 000 points | 0.16 s |
+| Online `StudentT`, 5 000 points | 1.7 s |
+| Online `MultivariateT`, 10-D, 1 000 points | 0.56 s |
 
-| Method | Device | Time | Speedup |
-|--------|--------|------|---------|
-| Original (NumPy) | CPU | 2.3s | 1x |
-| PyTorch | CPU | 0.8s | 2.9x |
-| PyTorch | GPU (RTX 3080) | 0.05s | 46x |
+Accelerators: see the FAQ; MPS is slower than the CPU on all of these, CUDA
+is unmeasured.
 
 ## Examples
 
@@ -670,8 +671,8 @@ In order of importance:
 3. **How you read the output.** `changepoint_probabilities(R, lag)` trades
    delay for confidence: a larger `lag` gives a more decisive probability,
    `lag` observations later. `get_map_changepoints(R, min_separation=k)`
-   merges near-duplicate starts when the posterior hesitates between
-   neighbouring points.
+   drops starts closer than `k` points to an earlier one, for when the
+   posterior hesitates between neighbouring points.
 
 Offline, the equivalent of the hazard is the segment-length prior:
 `const_prior(p=1/(T+1))` is the flat default; `geometric_prior(p=1/L)`
@@ -689,7 +690,8 @@ independent and Gaussian, and it detects changes in the mean and/or the
 | online `StudentT`, offline `StudentT` | i.i.d. Normal, unknown mean and variance (Normal-Gamma prior) |
 | online `MultivariateT` | i.i.d. multivariate Normal, unknown mean and covariance (Normal-Wishart) |
 | offline `IndependentFeaturesLikelihood` | one Normal-Gamma model per dimension, independent |
-| offline `FullCovarianceLikelihood`, offline `MultivariateT` | multivariate Normal with unknown covariance (Xuan & Murphy 2007) |
+| offline `MultivariateT` | i.i.d. multivariate Normal, unknown mean and covariance (Normal-Wishart) |
+| offline `FullCovarianceLikelihood` | multivariate Normal with unknown covariance and mean fixed at zero (Xuan & Murphy 2007); center the data first |
 
 When the data are not Gaussian the detector still runs, and the question is
 what the misspecification does to it:
@@ -714,10 +716,20 @@ that the residuals look plausible.
 ### Why is it slow on my laptop with a GPU?
 
 Device selection is automatic and prefers CUDA or Apple MPS when present, but
-these algorithms move small tensors sequentially, so for series under
-several thousand points the CPU is usually faster. Pass `device="cpu"` to
-both the likelihood and the detector. See the GPU section above for when an
-accelerator pays off.
+the online recursion is a sequential loop over small tensors, and each step
+on an accelerator pays a launch cost. Measured on an Apple M-series laptop
+(PyTorch 2.14), CPU against MPS:
+
+| workload | CPU | MPS |
+|---|---|---|
+| online `StudentT`, 1 000 points | 0.16 s | 2.5 s |
+| online `StudentT`, 5 000 points | 1.7 s | 11 s |
+| online `MultivariateT`, 10-D, 1 000 points | 0.56 s | 17 s |
+
+The offline detector needs float64 and always runs on the CPU when MPS is
+selected. Pass `device="cpu"` to both the likelihood and the detector unless
+you have measured otherwise on your hardware; CUDA has not been benchmarked
+(issue #43).
 
 ## Contributing
 
