@@ -649,9 +649,14 @@ variance about 0.1, but I am not sure": with `df = 2 * alpha = 0.2` the
 predictive is extremely heavy-tailed, which is why they still work on
 roughly unit-scale data.
 
-For `MultivariateT` the same holds: `mu` is in data units and `scale` is the
-Wishart scale on the *precision*; to encode a prior covariance `C` pass
-`scale = inv(C) / dof` (the default is `I / dof`, unit prior covariance).
+The multivariate classes work the same way but parametrize the prior on
+the covariance differently. Online `MultivariateT` takes `scale`, the
+Wishart scale `W` on the *precision*: to encode a prior covariance `C` pass
+`scale = inv(C) / dof` (default `I / dof`, unit prior covariance). Offline
+`MultivariateT` takes `Psi0`, the inverse-Wishart scale on the *covariance*
+side (`Psi0 = inv(W)`): the same prior covariance `C` is `Psi0 = dof0 * C`.
+Its default is `Psi0 = I`, which is `dof0` times tighter than the online
+default (issue #75). `mu`/`mu0` are in data units in both.
 
 ### How do I make the detector more or less sensitive? (issue #31)
 
@@ -691,7 +696,7 @@ independent and Gaussian, and it detects changes in the mean and/or the
 | online `MultivariateT` | i.i.d. multivariate Normal, unknown mean and covariance (Normal-Wishart) |
 | offline `IndependentFeaturesLikelihood` | one Normal-Gamma model per dimension, independent |
 | offline `MultivariateT` | i.i.d. multivariate Normal, unknown mean and covariance (Normal-Wishart) |
-| offline `FullCovarianceLikelihood` | multivariate Normal with unknown covariance and mean fixed at zero (Xuan & Murphy 2007); center the data first |
+| offline `FullCovarianceLikelihood` | multivariate Normal with unknown covariance and **no mean parameter** (mean zero, Xuan & Murphy 2007): it detects covariance changes; segments that differ in mean are misread as scale changes, so use `MultivariateT` when means move |
 
 When the data are not Gaussian the detector still runs, and the question is
 what the misspecification does to it:
