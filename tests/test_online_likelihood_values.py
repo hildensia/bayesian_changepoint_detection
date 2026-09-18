@@ -98,7 +98,7 @@ def test_multivariate_run_length_posterior_matches_independent_reference():
         MultivariateT(dims=dims, device="cpu"),
         device="cpu",
     )
-    assert np.abs(R.numpy() - expected).max() < 1e-3
+    assert np.abs(R.numpy() - expected).max() < 1e-5   # measured 5e-7 in float32
     assert np.array_equal(R.numpy().argmax(axis=0), expected.argmax(axis=0))
 
 
@@ -107,3 +107,44 @@ def test_default_multivariate_prior_has_unit_covariance():
     dims = 4
     model = MultivariateT(dims=dims, device="cpu")
     assert torch.allclose(model.dof0 * model.scale0, torch.eye(dims))
+
+
+@pytest.mark.parametrize("n,dims,sd", [(600, 2, 1.0), (1500, 3, 0.1)])
+def test_multivariate_t_long_run_predictive_does_not_drift(n, dims, sd):
+    """The predictive after a long run must match the closed-form
+    Normal-Wishart posterior (Murphy 2007, eqs. 255-258) computed in float64
+    from the batch sufficient statistics. Versions up to 1.1.0 kept W and
+    added 1e-6 I to it before every inversion; on a shrinking W that bias
+    compounds (7.6% in the posterior scale after 500 points, 67% after 3000)
+    and the log predictive was off by 0.06 and 0.78 nats respectively."""
+    rng = np.random.default_rng(0)
+    X = rng.normal(0, sd, (n, dims))
+    model = MultivariateT(dims=dims, device="cpu")
+    for i in range(n - 1):
+        x = torch.tensor(X[i], dtype=torch.float32)
+        model.pdf(x)
+        model.update_theta(x)
+    got = model.pdf(torch.tensor(X[-1], dtype=torch.float32))[-1].item()  # longest run
+
+    Y = X[:-1]
+    k0, nu0, mu0 = 1.0, dims + 1, np.zeros(dims)
+    T0 = np.linalg.inv(np.eye(dims) / (dims + 1))  # inverse of the default W
+    N = len(Y); ybar = Y.mean(0); S = (Y - ybar).T @ (Y - ybar)
+    kN, nuN = k0 + N, nu0 + N
+    muN = (k0 * mu0 + N * ybar) / kN
+    TN = T0 + S + k0 * N / kN * np.outer(ybar - mu0, ybar - mu0)
+    tdof = nuN - dims + 1
+    expected = multivariate_t.logpdf(X[-1], loc=muN, shape=TN * (kN + 1) / (kN * tdof), df=tdof)
+    # float32 lgamma at tdof ~ 1500 costs ~1e-3; master is off by 1e-1 here.
+    assert abs(got - expected) < 3e-3
+    assert np.allclose(model.scale_inv[-1].double().numpy(), TN, rtol=1e-4, atol=1e-2)
+
+
+def test_scale_property_is_the_inverse_of_the_state():
+    model = MultivariateT(dims=3, device="cpu")
+    for x in torch.randn(5, 3):
+        model.pdf(x)
+        model.update_theta(x)
+    eye = torch.eye(3).expand(model.scale_inv.shape[0], 3, 3)
+    assert torch.allclose(torch.bmm(model.scale, model.scale_inv), eye, atol=1e-4)
+    assert torch.allclose(model.scale[0], model.scale0, atol=1e-6)
