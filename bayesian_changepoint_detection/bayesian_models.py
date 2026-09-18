@@ -336,10 +336,11 @@ def online_changepoint_detection(
         likelihood_model.to(device)
     data = ensure_tensor(data, device=device)
 
-    if data.dim() == 1:
-        T = data.shape[0]
-    else:
-        T = data.shape[0]  # First dimension is time
+    T = data.shape[0]  # First dimension is time
+    if T == 0:
+        raise ValueError("data must contain at least one observation")
+    if not bool(torch.isfinite(data).all()):
+        raise ValueError("data contains NaN or Inf; remove or impute them first")
 
     # Initialize run length probability matrix
     R = torch.zeros(T + 1, T + 1, device=device, dtype=torch.float32)

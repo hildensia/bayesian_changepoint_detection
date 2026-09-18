@@ -104,6 +104,10 @@ All notable changes to this project are documented here. The format follows
   offline detector; `negative_binomial_prior` had `p` and `1 - p` swapped, so
   `k = 1` did not reduce to the geometric prior. Both now match
   `scipy.stats.geom` / `scipy.stats.nbinom`; impossible lengths return `-inf`.
+- `online_changepoint_detection` raises a `ValueError` for empty input and
+  for `NaN`/`Inf` values, like the offline detector and `viterbi_changepoints`;
+  it used to return a 1x1 posterior, or a non-finite `R` whose MAP run
+  length is 0 at every step.
 - `offline_changepoint_detection` raises a `ValueError` for empty input, for
   `NaN`/`Inf` values, and for a length prior whose mass on lengths `1..T-1`
   exceeds 1 (e.g. `const_prior(p=0.25)` on more than five points), instead
