@@ -21,6 +21,11 @@ updates:
     schedule:
       interval: "weekly"
     open-pull-requests-limit: 5
+    # pyproject.toml declares lower bounds only. The default strategy
+    # proposes raising them to the latest release (#62-#66), which shrinks
+    # the supported range for nothing; only propose a change when a
+    # requirement actually excludes a new version.
+    versioning-strategy: increase-if-necessary
     groups:
       python-minor-and-patch:
         update-types: ["minor", "patch"]
