@@ -47,7 +47,8 @@ test, `test_device_consistency` in `tests/test_integration.py`, predates
 the marker and only skips at runtime.
 
 CI runs `pytest tests/` on Python 3.9 to 3.13 with CPU-only PyTorch, a
-`lint` job (`ruff check` and `ruff format --check`), and a `build` job that
+`lint` job (`ruff check` and `ruff format --check`), an `examples` job that
+runs every script in `examples/` headless, and a `build` job that
 makes the sdist and wheel, runs `twine check`, and installs the wheel into a
 clean environment to run both detectors once. Run the linter and formatter
 locally before pushing, or let the pre-commit hooks do it on each commit:
@@ -86,8 +87,8 @@ maintainers and to any automated agent acting for them:
   fork or a topic branch.
 - Never force-push to `master`. If something has to be undone, revert it
   through a pull request.
-- A PR is merged only when CI is green on `lint`, every `test (3.x)` leg
-  and `build`, and
+- A PR is merged only when CI is green on `lint`, every `test (3.x)` leg,
+  `examples` and `build`, and
   the review is done: request whatever automated code review the
   repository has enabled, or ask a person where none is available, and
   address every comment, either with a fix or with a reply in the thread

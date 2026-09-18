@@ -61,6 +61,8 @@ All notable changes to this project are documented here. The format follows
 - ruff for linting and formatting (`[tool.ruff]` in `pyproject.toml`, a
   `lint` CI job, `.pre-commit-config.yaml`); black, isort and flake8 are no
   longer used and `.flake8` is gone. The whole tree was formatted once.
+- CI job `examples`: runs every example script headless with the `plot`
+  extra installed, so examples cannot drift from the API unnoticed.
 - CI workflow (GitHub Actions) running the test suite on Python 3.9–3.13,
   plus a `build` job: sdist and wheel, `twine check --strict`, and a smoke
   test that installs the wheel into a clean environment and runs both
@@ -139,6 +141,10 @@ All notable changes to this project are documented here. The format follows
   `device="cpu"`.
 - `IndependentFeaturesLikelihood` and `FullCovarianceLikelihood` produced
   `nan` for univariate input (zero-variance length-one segments).
+- `examples/example.py` removed: it still used the pre-1.0 NumPy module
+  layout (`offline_changepoint_detection` module, `const_prior(l=...)`) and
+  had not run since the PyTorch rewrite; `basic_usage.py` and
+  `simple_example.py` cover the same ground.
 - `.idea/` (IDE settings) and two example figures were tracked at the
   repository root; removed, and root-level `*.png` is now ignored.
 - Root-level `test.py` was never collected by pytest; its tests now live in
