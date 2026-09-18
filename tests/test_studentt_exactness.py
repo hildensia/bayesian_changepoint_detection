@@ -77,7 +77,6 @@ def test_multivariate_input_sums_independent_dimensions():
     combined = likelihood.pdf(data, 5, 35)
 
     per_dim = sum(
-        StudentT(device="cpu").pdf(data[:, d].contiguous(), 5, 35)
-        for d in range(3)
+        StudentT(device="cpu").pdf(data[:, d].contiguous(), 5, 35) for d in range(3)
     )
     assert combined == pytest.approx(per_dim, abs=1e-9)

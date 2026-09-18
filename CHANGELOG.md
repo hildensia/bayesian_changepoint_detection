@@ -52,12 +52,15 @@ All notable changes to this project are documented here. The format follows
   likelihood of every segment starting at `t` in one vectorized call, and
   `setup(data)` to precompute sufficient statistics.
 - Likelihood models can be moved between devices with `.to(device)`.
+- ruff for linting and formatting (`[tool.ruff]` in `pyproject.toml`, a
+  `lint` CI job, `.pre-commit-config.yaml`); black, isort and flake8 are no
+  longer used and `.flake8` is gone. The whole tree was formatted once.
 - CI workflow (GitHub Actions) running the test suite on Python 3.9–3.13,
   plus a `build` job: sdist and wheel, `twine check --strict`, and a smoke
   test that installs the wheel into a clean environment and runs both
   detectors.
 - `AGENTS.md` with repository conventions.
-- `CHANGELOG.md` (this file) and `.flake8`.
+- `CHANGELOG.md` (this file).
 - `CONTRIBUTING.md` (setup, conventions, the `master` rule, releasing) and an
   explicit `.github/dependabot.yml` (GitHub Actions and pip, weekly, grouped;
   pip uses `increase-if-necessary` so lower bounds are not bumped needlessly).

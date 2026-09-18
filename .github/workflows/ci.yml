@@ -7,6 +7,18 @@ on:
   workflow_dispatch:
 
 jobs:
+  lint:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v7
+      - uses: astral-sh/ruff-action@v3
+        with:
+          args: check
+      - uses: astral-sh/ruff-action@v3
+        with:
+          args: format --check
+
   test:
     runs-on: ubuntu-latest
     timeout-minutes: 30

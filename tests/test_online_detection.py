@@ -35,8 +35,10 @@ def reference_bocpd(x, lam, alpha0, beta0, kappa0, mu0):
     T = len(x)
     R = np.zeros((T + 1, T + 1))
     R[0, 0] = 1.0
-    alpha = np.array([alpha0]); beta = np.array([beta0])
-    kappa = np.array([kappa0]); mu = np.array([mu0])
+    alpha = np.array([alpha0])
+    beta = np.array([beta0])
+    kappa = np.array([kappa0])
+    mu = np.array([mu0])
     H = 1.0 / lam
     for t in range(T):
         df = 2 * alpha
@@ -52,8 +54,10 @@ def reference_bocpd(x, lam, alpha0, beta0, kappa0, mu0):
         kappa_n = kappa + 1
         alpha_n = alpha + 0.5
         beta_n = beta + kappa * (x[t] - mu) ** 2 / (2 * (kappa + 1))
-        mu = np.concatenate([[mu0], mu_n]); kappa = np.concatenate([[kappa0], kappa_n])
-        alpha = np.concatenate([[alpha0], alpha_n]); beta = np.concatenate([[beta0], beta_n])
+        mu = np.concatenate([[mu0], mu_n])
+        kappa = np.concatenate([[kappa0], kappa_n])
+        alpha = np.concatenate([[alpha0], alpha_n])
+        beta = np.concatenate([[beta0], beta_n])
     return R
 
 
@@ -81,8 +85,10 @@ def test_columns_are_normalized_and_run_length_zero_equals_hazard():
     torch.manual_seed(0)
     data = torch.cat([torch.randn(50), torch.randn(50) + 5])
     R, _ = online_changepoint_detection(
-        data, partial(constant_hazard, 40, device="cpu"),
-        StudentT(0.1, 0.01, 1.0, 0.0, device="cpu"), device="cpu",
+        data,
+        partial(constant_hazard, 40, device="cpu"),
+        StudentT(0.1, 0.01, 1.0, 0.0, device="cpu"),
+        device="cpu",
     )
     assert torch.allclose(R.sum(dim=0), torch.ones(R.shape[1]), atol=1e-5)
     assert torch.allclose(R[0, 1:], torch.full((R.shape[1] - 1,), 1 / 40), atol=1e-5)
@@ -92,8 +98,10 @@ def test_single_mean_shift_is_detected_at_the_right_place():
     torch.manual_seed(0)
     data = torch.cat([torch.randn(80), torch.randn(80) + 5])
     R, map_run_lengths = online_changepoint_detection(
-        data, partial(constant_hazard, 100, device="cpu"),
-        StudentT(0.1, 0.01, 1.0, 0.0, device="cpu"), device="cpu",
+        data,
+        partial(constant_hazard, 100, device="cpu"),
+        StudentT(0.1, 0.01, 1.0, 0.0, device="cpu"),
+        device="cpu",
     )
     # MAP run length grows to 80 and resets to 1 right after the shift.
     assert map_run_lengths[80] == 80
@@ -110,8 +118,10 @@ def test_no_changepoint_series_reports_nothing():
     torch.manual_seed(3)
     data = torch.randn(200)
     R, _ = online_changepoint_detection(
-        data, partial(constant_hazard, 100, device="cpu"),
-        StudentT(0.1, 0.01, 1.0, 0.0, device="cpu"), device="cpu",
+        data,
+        partial(constant_hazard, 100, device="cpu"),
+        StudentT(0.1, 0.01, 1.0, 0.0, device="cpu"),
+        device="cpu",
     )
     assert get_map_changepoints(R).numel() == 0
     # Position 0 is trivially a segment start; everything after it must be
@@ -121,12 +131,19 @@ def test_no_changepoint_series_reports_nothing():
 
 def test_multiple_changes_with_min_separation():
     torch.manual_seed(0)
-    data = torch.cat([
-        torch.randn(60), torch.randn(60) + 4, torch.randn(60), torch.randn(60) - 4,
-    ])
+    data = torch.cat(
+        [
+            torch.randn(60),
+            torch.randn(60) + 4,
+            torch.randn(60),
+            torch.randn(60) - 4,
+        ]
+    )
     R, _ = online_changepoint_detection(
-        data, partial(constant_hazard, 50, device="cpu"),
-        StudentT(0.1, 0.01, 1.0, 0.0, device="cpu"), device="cpu",
+        data,
+        partial(constant_hazard, 50, device="cpu"),
+        StudentT(0.1, 0.01, 1.0, 0.0, device="cpu"),
+        device="cpu",
     )
     found = get_map_changepoints(R, min_separation=10).tolist()
     assert len(found) == 3
@@ -150,15 +167,19 @@ def test_get_map_changepoints_threshold_is_deprecated():
 def test_multivariate():
     """Ten-dimensional mean shifts at t=50, 100, 150 (from the original suite)."""
     np.random.seed(seed=34)
-    dataset = np.vstack((
-        multivariate_normal.rvs([0] * 10, size=50),
-        multivariate_normal.rvs([4] * 10, size=50),
-        multivariate_normal.rvs([0] * 10, size=50),
-        multivariate_normal.rvs([-4] * 10, size=50),
-    ))
+    dataset = np.vstack(
+        (
+            multivariate_normal.rvs([0] * 10, size=50),
+            multivariate_normal.rvs([4] * 10, size=50),
+            multivariate_normal.rvs([0] * 10, size=50),
+            multivariate_normal.rvs([-4] * 10, size=50),
+        )
+    )
     R, map_run_lengths = online_changepoint_detection(
-        dataset, partial(constant_hazard, 50, device="cpu"),
-        MultivariateT(dims=10, device="cpu"), device="cpu",
+        dataset,
+        partial(constant_hazard, 50, device="cpu"),
+        MultivariateT(dims=10, device="cpu"),
+        device="cpu",
     )
     found = get_map_changepoints(R, min_separation=10).tolist()
     assert len(found) == 3
@@ -172,7 +193,9 @@ def test_univariate():
     np.random.seed(seed=34)
     dataset = np.hstack((norm.rvs(0, size=50), norm.rvs(2, size=50)))
     R, maxes = online_changepoint_detection(
-        dataset, partial(constant_hazard, 20, device="cpu"),
-        StudentT(0.1, 0.01, 1, 0, device="cpu"), device="cpu",
+        dataset,
+        partial(constant_hazard, 20, device="cpu"),
+        StudentT(0.1, 0.01, 1, 0, device="cpu"),
+        device="cpu",
     )
     assert maxes[50] - maxes[51] > 40

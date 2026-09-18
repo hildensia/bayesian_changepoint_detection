@@ -132,7 +132,7 @@ pip install -e ".[dev]"
 
 The package defines several optional dependency groups:
 
-- **`dev`**: Development and test tools (pytest, numpy, scipy, black, mypy, etc.)
+- **`dev`**: Development and test tools (pytest, numpy, scipy, ruff, pre-commit, mypy, etc.)
 - **`plot`**: Plotting for the examples and notebooks (matplotlib, seaborn)
 - **`docs`**: Documentation generation (sphinx, numpydoc)
 - **`gpu`**: GPU support (CUDA-enabled PyTorch)
@@ -278,9 +278,9 @@ pytest
 # or if pytest is not in PATH:
 python -m pytest
 
-# Run code formatting
-black bayesian_changepoint_detection tests examples
-isort bayesian_changepoint_detection tests examples
+# Lint and format (what CI checks)
+ruff check .
+ruff format .
 
 # Run type checking
 mypy bayesian_changepoint_detection
@@ -294,10 +294,10 @@ mypy bayesian_changepoint_detection
    ```bash
    # Option 1: Use python -m pytest
    python -m pytest
-   
+
    # Option 2: Ensure pytest is installed
    pip install pytest
-   
+
    # Option 3: Run just the basic online-detection tests
    python -m pytest tests/test_online_detection.py
    ```
@@ -313,7 +313,7 @@ mypy bayesian_changepoint_detection
    ```bash
    # Check CUDA version
    nvidia-smi
-   
+
    # Install matching PyTorch version from https://pytorch.org/
    ```
 
@@ -564,7 +564,7 @@ pytest tests/ -m "not gpu"
 
 The full test suite includes:
 - Device management tests
-- Online and offline likelihood tests  
+- Online and offline likelihood tests
 - Prior distribution tests
 - Integration tests with regression testing
 - GPU computation tests (when CUDA available)
@@ -572,17 +572,12 @@ The full test suite includes:
 ### Code Quality
 
 ```bash
-# Format code
-black bayesian_changepoint_detection tests
+# Lint and format (CI runs both; pre-commit install runs them on each commit)
+ruff check .
+ruff format .
 
-# Sort imports
-isort bayesian_changepoint_detection tests
-
-# Type checking
+# Type checking (configured, not enforced yet)
 mypy bayesian_changepoint_detection
-
-# Linting
-flake8 bayesian_changepoint_detection tests
 ```
 
 ## Migration from v0.4

@@ -34,7 +34,9 @@ _V0_FLOOR = 1e-8  # floor on the data-derived prior variance
 def _multigammaln(a: torch.Tensor, p: int) -> torch.Tensor:
     """Log of the multivariate gamma function, vectorized over ``a``."""
     j = torch.arange(p, device=a.device, dtype=a.dtype)
-    return (p * (p - 1) / 4.0) * _LOG_PI + torch.lgamma(a.unsqueeze(-1) - j / 2.0).sum(-1)
+    return (p * (p - 1) / 4.0) * _LOG_PI + torch.lgamma(a.unsqueeze(-1) - j / 2.0).sum(
+        -1
+    )
 
 
 class BaseLikelihood(ABC):
@@ -59,7 +61,7 @@ class BaseLikelihood(ABC):
     def __init__(
         self,
         device: Optional[Union[str, torch.device]] = None,
-        cache_enabled: bool = True
+        cache_enabled: bool = True,
     ):
         self.device = get_device(device)
         self.cache_enabled = cache_enabled
@@ -131,8 +133,12 @@ class BaseLikelihood(ABC):
             data = data.unsqueeze(1)
         return data
 
-    def _compute_stats(self, data: torch.Tensor) -> None:
-        """Compute per-dataset sufficient statistics. Default: none."""
+    def _compute_stats(self, data: torch.Tensor) -> None:  # noqa: B027
+        """Compute per-dataset sufficient statistics. Default: none.
+
+        Not abstract on purpose: likelihoods without precomputed statistics
+        (e.g. third-party ones that only implement ``pdf``) need no override.
+        """
 
     @abstractmethod
     def pdf(self, data: torch.Tensor, t: int, s: int) -> float:
@@ -177,15 +183,13 @@ class _CumsumLikelihood(BaseLikelihood):
         zero = torch.zeros(1, d, dtype=data.dtype, device=data.device)
         # S1[k] = sum of data[:k], S2[k] = sum of data[:k]**2  (shape [n+1, d])
         self._S1 = torch.cat([zero, torch.cumsum(data, dim=0)])
-        self._S2 = torch.cat([zero, torch.cumsum(data ** 2, dim=0)])
+        self._S2 = torch.cat([zero, torch.cumsum(data**2, dim=0)])
 
     def _segment_moments(self, t: int, s_hi: int):
         """Lengths, first and second moments of data[t:s] for s = t+1 .. s_hi."""
-        sum_x = self._S1[t + 1:s_hi + 1] - self._S1[t]
-        sum_x2 = self._S2[t + 1:s_hi + 1] - self._S2[t]
-        lengths = torch.arange(
-            1, s_hi - t + 1, dtype=sum_x.dtype, device=sum_x.device
-        )
+        sum_x = self._S1[t + 1 : s_hi + 1] - self._S1[t]
+        sum_x2 = self._S2[t + 1 : s_hi + 1] - self._S2[t]
+        lengths = torch.arange(1, s_hi - t + 1, dtype=sum_x.dtype, device=sum_x.device)
         return lengths, sum_x, sum_x2
 
 
@@ -262,7 +266,7 @@ class StudentT(_CumsumLikelihood):
         n = lengths.unsqueeze(-1)  # [m, 1]
         mean = sum_x / n
         # sum of squared deviations; clamp guards tiny negative rounding error
-        ss = torch.clamp(sum_x2 - sum_x ** 2 / n, min=0.0)
+        ss = torch.clamp(sum_x2 - sum_x**2 / n, min=0.0)
 
         kappa_n = self.kappa0 + n
         alpha_n = self.alpha0 + n / 2.0
@@ -470,7 +474,7 @@ class FullCovarianceLikelihood(_CumsumLikelihood):
         data = self.setup(data)
         n = data.shape[0]
         lengths, sum_x, sum_x2 = self._segment_moments(t, n)
-        sum_outer = self._C[t + 1:n + 1] - self._C[t]
+        sum_outer = self._C[t + 1 : n + 1] - self._C[t]
         return self._log_marginal(lengths, sum_x, sum_x2, sum_outer)
 
     def pdf(self, data: torch.Tensor, t: int, s: int) -> float:
@@ -496,7 +500,7 @@ class FullCovarianceLikelihood(_CumsumLikelihood):
             return 0.0
         data = self.setup(data)
         lengths, sum_x, sum_x2 = self._segment_moments(t, s)
-        sum_outer = (self._C[s:s + 1] - self._C[t])
+        sum_outer = self._C[s : s + 1] - self._C[t]
         return self._log_marginal(
             lengths[-1:], sum_x[-1:], sum_x2[-1:], sum_outer
         ).item()
@@ -543,7 +547,7 @@ class MultivariateT(_CumsumLikelihood):
         mu0: Optional[torch.Tensor] = None,
         Psi0: Optional[torch.Tensor] = None,
         device: Optional[Union[str, torch.device]] = None,
-        cache_enabled: bool = True
+        cache_enabled: bool = True,
     ):
         super().__init__(device, cache_enabled)
         self.dims = dims
@@ -618,7 +622,7 @@ class MultivariateT(_CumsumLikelihood):
         data = self.setup(data)
         n = data.shape[0]
         lengths, sum_x, _ = self._segment_moments(t, n)
-        sum_outer = self._C[t + 1:n + 1] - self._C[t]
+        sum_outer = self._C[t + 1 : n + 1] - self._C[t]
         return self._log_marginal(data, lengths, sum_x, sum_outer)
 
     def pdf(self, data: torch.Tensor, t: int, s: int) -> float:
@@ -644,7 +648,5 @@ class MultivariateT(_CumsumLikelihood):
             return 0.0
         data = self.setup(data)
         lengths, sum_x, _ = self._segment_moments(t, s)
-        sum_outer = self._C[s:s + 1] - self._C[t]
-        return self._log_marginal(
-            data, lengths[-1:], sum_x[-1:], sum_outer
-        ).item()
+        sum_outer = self._C[s : s + 1] - self._C[t]
+        return self._log_marginal(data, lengths[-1:], sum_x[-1:], sum_outer).item()

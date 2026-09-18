@@ -5,24 +5,25 @@ This module provides utilities for automatic device detection and tensor managem
 across CPU and GPU platforms.
 """
 
-import torch
 from typing import Optional, Union
+
+import torch
 
 
 def get_device(device: Optional[Union[str, torch.device]] = None) -> torch.device:
     """
     Get the appropriate PyTorch device.
-    
+
     Parameters
     ----------
     device : str, torch.device, or None, optional
         Desired device. If None, automatically selects the best available device.
-        
+
     Returns
     -------
     torch.device
         The selected device.
-        
+
     Examples
     --------
     >>> device = get_device()  # Auto-select best device
@@ -31,23 +32,23 @@ def get_device(device: Optional[Union[str, torch.device]] = None) -> torch.devic
     """
     if device is None:
         if torch.cuda.is_available():
-            return torch.device('cuda')
-        elif hasattr(torch.backends, 'mps') and torch.backends.mps.is_available():
-            return torch.device('mps')
+            return torch.device("cuda")
+        elif hasattr(torch.backends, "mps") and torch.backends.mps.is_available():
+            return torch.device("mps")
         else:
-            return torch.device('cpu')
-    
+            return torch.device("cpu")
+
     return torch.device(device)
 
 
 def to_tensor(
-    data, 
-    device: Optional[Union[str, torch.device]] = None, 
-    dtype: Optional[torch.dtype] = None
+    data,
+    device: Optional[Union[str, torch.device]] = None,
+    dtype: Optional[torch.dtype] = None,
 ) -> torch.Tensor:
     """
     Convert data to PyTorch tensor on specified device.
-    
+
     Parameters
     ----------
     data : array-like
@@ -56,12 +57,12 @@ def to_tensor(
         Target device for the tensor.
     dtype : torch.dtype, optional
         Desired data type for the tensor.
-        
+
     Returns
     -------
     torch.Tensor
         Converted tensor on the specified device.
-        
+
     Examples
     --------
     >>> import numpy as np
@@ -71,9 +72,9 @@ def to_tensor(
     """
     if dtype is None:
         dtype = torch.float32
-    
+
     device = get_device(device)
-    
+
     if isinstance(data, torch.Tensor):
         return data.to(device=device, dtype=dtype)
     else:
@@ -81,19 +82,18 @@ def to_tensor(
 
 
 def ensure_tensor(
-    data, 
-    device: Optional[Union[str, torch.device]] = None
+    data, device: Optional[Union[str, torch.device]] = None
 ) -> torch.Tensor:
     """
     Ensure data is a PyTorch tensor, converting if necessary.
-    
+
     Parameters
     ----------
     data : array-like or torch.Tensor
         Input data.
     device : str, torch.device, or None, optional
         Target device for the tensor.
-        
+
     Returns
     -------
     torch.Tensor
@@ -101,23 +101,23 @@ def ensure_tensor(
     """
     if not isinstance(data, torch.Tensor):
         return to_tensor(data, device=device)
-    
+
     target_device = get_device(device)
     if data.device != target_device:
         return data.to(target_device)
-    
+
     return data
 
 
 def get_device_info() -> dict:
     """
     Get information about available devices.
-    
+
     Returns
     -------
     dict
         Dictionary containing device information.
-        
+
     Examples
     --------
     >>> info = get_device_info()
@@ -125,22 +125,22 @@ def get_device_info() -> dict:
     >>> print(f"Device count: {info['device_count']}")
     """
     info = {
-        'cuda_available': torch.cuda.is_available(),
-        'device_count': 0,
-        'current_device': None,
-        'mps_available': False,
-        'devices': []
+        "cuda_available": torch.cuda.is_available(),
+        "device_count": 0,
+        "current_device": None,
+        "mps_available": False,
+        "devices": [],
     }
-    
+
     if torch.cuda.is_available():
-        info['device_count'] = torch.cuda.device_count()
-        info['current_device'] = torch.cuda.current_device()
-        info['devices'] = [f'cuda:{i}' for i in range(info['device_count'])]
-    
-    if hasattr(torch.backends, 'mps') and torch.backends.mps.is_available():
-        info['mps_available'] = True
-        info['devices'].append('mps')
-    
-    info['devices'].append('cpu')
-    
+        info["device_count"] = torch.cuda.device_count()
+        info["current_device"] = torch.cuda.current_device()
+        info["devices"] = [f"cuda:{i}" for i in range(info["device_count"])]
+
+    if hasattr(torch.backends, "mps") and torch.backends.mps.is_available():
+        info["mps_available"] = True
+        info["devices"].append("mps")
+
+    info["devices"].append("cpu")
+
     return info

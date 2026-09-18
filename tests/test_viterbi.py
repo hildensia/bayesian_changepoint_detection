@@ -14,10 +14,11 @@ from bayesian_changepoint_detection import (
     compute_run_length_posterior,
     constant_hazard,
     get_map_changepoints,
+    offline_likelihoods,
     online_changepoint_detection,
+    online_likelihoods,
     viterbi_changepoints,
 )
-from bayesian_changepoint_detection import offline_likelihoods, online_likelihoods
 from tests._reference_bocpd import reference_map_segmentation
 
 HYPER = dict(alpha=0.1, beta=0.01, kappa=1.0, mu=0.0)
@@ -31,8 +32,11 @@ def _segment_log_likelihoods(data):
     """Offline closed form of the same Normal-Gamma model (pinned elsewhere
     against scipy), so only the path search is under test here."""
     off = offline_likelihoods.StudentT(
-        alpha0=HYPER["alpha"], beta0=HYPER["beta"], kappa0=HYPER["kappa"],
-        mu0=HYPER["mu"], device="cpu",
+        alpha0=HYPER["alpha"],
+        beta0=HYPER["beta"],
+        kappa0=HYPER["kappa"],
+        mu0=HYPER["mu"],
+        device="cpu",
     )
     x = data.double()
     off.setup(x)
@@ -51,7 +55,9 @@ def test_matches_exhaustive_map_segmentation(seed):
     else:
         data = torch.cat([torch.randn(3), torch.randn(3) + 5, torch.randn(3) - 5])
     lam = 5.0
-    _, expected_starts = reference_map_segmentation(_segment_log_likelihoods(data), len(data), 1 / lam)
+    _, expected_starts = reference_map_segmentation(
+        _segment_log_likelihoods(data), len(data), 1 / lam
+    )
 
     path, changepoints = viterbi_changepoints(
         data, partial(constant_hazard, lam, device="cpu"), _online(), device="cpu"
@@ -100,8 +106,10 @@ def test_multivariate():
     torch.manual_seed(1)
     data = torch.cat([torch.randn(40, 3), torch.randn(40, 3) + 3])
     _, changepoints = viterbi_changepoints(
-        data, partial(constant_hazard, 50, device="cpu"),
-        online_likelihoods.MultivariateT(dims=3, device="cpu"), device="cpu",
+        data,
+        partial(constant_hazard, 50, device="cpu"),
+        online_likelihoods.MultivariateT(dims=3, device="cpu"),
+        device="cpu",
     )
     assert len(changepoints) == 1 and abs(int(changepoints[0]) - 40) <= 2
 
@@ -111,7 +119,9 @@ def test_input_validation():
     with pytest.raises(ValueError, match="at least one observation"):
         viterbi_changepoints(torch.zeros(0), hazard, _online(), device="cpu")
     with pytest.raises(ValueError, match="NaN or Inf"):
-        viterbi_changepoints(torch.tensor([1.0, float("nan")]), hazard, _online(), device="cpu")
+        viterbi_changepoints(
+            torch.tensor([1.0, float("nan")]), hazard, _online(), device="cpu"
+        )
 
 
 def test_compute_run_length_posterior_is_the_forward_pass():
@@ -136,5 +146,7 @@ def test_model_built_on_another_device_is_moved(monkeypatch):
 
     monkeypatch.setattr(model, "to", spy)
     torch.manual_seed(0)
-    viterbi_changepoints(torch.randn(10), partial(constant_hazard, 20, device="cpu"), model, device="cpu")
+    viterbi_changepoints(
+        torch.randn(10), partial(constant_hazard, 20, device="cpu"), model, device="cpu"
+    )
     assert moved["device"].type == "cpu"

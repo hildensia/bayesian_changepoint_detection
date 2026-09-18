@@ -26,8 +26,9 @@ pip install -e ".[dev]"
 pytest
 ```
 
-No linter runs in CI, though `pyproject.toml` carries black, isort and mypy
-settings. Tests must pass without a GPU.
+CI lints with ruff (`ruff check` and `ruff format --check`, config in
+`pyproject.toml`); run both before pushing, or `pre-commit install` once.
+Tests must pass without a GPU.
 
 Two things that surprise people:
 

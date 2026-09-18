@@ -91,12 +91,15 @@ def test_setup_recomputes_when_data_changes():
     assert likelihood.pdf(first, 0, 30) == pytest.approx(value_first, abs=1e-12)
 
 
-@pytest.mark.parametrize("cls", [
-    StudentT,
-    IndependentFeaturesLikelihood,
-    FullCovarianceLikelihood,
-    MultivariateT,
-])
+@pytest.mark.parametrize(
+    "cls",
+    [
+        StudentT,
+        IndependentFeaturesLikelihood,
+        FullCovarianceLikelihood,
+        MultivariateT,
+    ],
+)
 def test_in_place_mutation_invalidates_cached_statistics(cls):
     """Mutating the same tensor in place must not return stale likelihoods."""
     torch.manual_seed(3)
@@ -112,10 +115,13 @@ def test_in_place_mutation_invalidates_cached_statistics(cls):
     assert after == pytest.approx(fresh, rel=1e-12)
 
 
-@pytest.mark.parametrize("cls", [
-    IndependentFeaturesLikelihood,
-    FullCovarianceLikelihood,
-])
+@pytest.mark.parametrize(
+    "cls",
+    [
+        IndependentFeaturesLikelihood,
+        FullCovarianceLikelihood,
+    ],
+)
 def test_univariate_input_has_finite_likelihoods(cls):
     """Length-one segments have zero variance; the prior floor must keep
     the log likelihood finite so Q does not become nan (regression)."""
@@ -126,9 +132,12 @@ def test_univariate_input_has_finite_likelihoods(cls):
     assert torch.isfinite(rows).all()
 
     from functools import partial
+
     from bayesian_changepoint_detection import (
-        const_prior, offline_changepoint_detection,
+        const_prior,
+        offline_changepoint_detection,
     )
+
     Q, _, Pcp = offline_changepoint_detection(
         data, partial(const_prior, p=1 / 61), model, device="cpu"
     )
@@ -154,8 +163,10 @@ def test_detection_passes_caller_data_unchanged_to_third_party_pdf():
     """offline_changepoint_detection must not reshape or recast the data it
     hands to a likelihood that only implements the scalar pdf API."""
     from functools import partial
+
     from bayesian_changepoint_detection import (
-        const_prior, offline_changepoint_detection,
+        const_prior,
+        offline_changepoint_detection,
     )
 
     seen = []
@@ -167,7 +178,9 @@ def test_detection_passes_caller_data_unchanged_to_third_party_pdf():
 
     data = torch.randn(12, dtype=torch.float32)
     offline_changepoint_detection(
-        data, partial(const_prior, p=1 / 13), Recording(device="cpu"),
+        data,
+        partial(const_prior, p=1 / 13),
+        Recording(device="cpu"),
         device="cpu",
     )
     assert seen and all(shape == (12,) for shape, _ in seen)
@@ -210,6 +223,7 @@ def test_statistics_cache_is_invalidated_when_model_device_changes():
 def test_impossible_entries_stay_minus_inf_in_changepoint_matrix():
     """-inf log probabilities must not be clamped to finite extrema."""
     from bayesian_changepoint_detection.bayesian_models import _nan_to_neg_inf
+
     x = torch.tensor([0.0, float("nan"), float("-inf"), float("inf")])
     y = _nan_to_neg_inf(x)
     assert y[0] == 0.0
