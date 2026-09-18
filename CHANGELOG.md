@@ -61,6 +61,10 @@ All notable changes to this project are documented here. The format follows
   detectors.
 - `AGENTS.md` with repository conventions.
 - `CHANGELOG.md` (this file).
+- README FAQ: online vs offline, the one-index difference between their
+  conventions, data scaling and prior units (#34), sensitivity (#31),
+  non-Gaussian data (#36), CPU vs accelerator.
+- `maintainers` in `pyproject.toml` lists both maintainers.
 - `CONTRIBUTING.md` (setup, conventions, the `master` rule, releasing) and an
   explicit `.github/dependabot.yml` (GitHub Actions and pip, weekly, grouped;
   pip uses `increase-if-necessary` so lower bounds are not bumped needlessly).

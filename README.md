@@ -215,10 +215,11 @@ R, map_run_lengths = online_changepoint_detection(data, hazard_func, likelihood)
 print("Detected changepoints:", get_map_changepoints(R))
 ```
 
-**Performance Benefits:**
-- 10-100x speedup on compatible hardware
-- Especially beneficial for large datasets (>1000 points) and multivariate data
-- Automatic memory management and device detection
+**Performance note:** the online recursion is sequential, so an accelerator
+only pays off when each step is large (high dimension, long series). On an
+Apple M-series laptop the CPU is 6-30x faster than MPS for the cases in the
+FAQ below; CUDA is unmeasured (issue #43). Device detection is automatic;
+pass `device="cpu"` to opt out.
 
 📖 **For a complete GPU guide with benchmarks, multivariate examples, and memory management tips, see**
 - **[docs/gpu_offline_detection_guide.md](docs/gpu_offline_detection_guide.md)**
@@ -495,24 +496,24 @@ This library implements Bayesian changepoint detection as described in:
 
 ## Performance
 
-The PyTorch implementation provides significant performance improvements:
-
-- **Vectorized Operations**: Efficient batch computations
-- **GPU Acceleration**: 10-100x speedup on compatible hardware
-- **Memory Efficiency**: Optimized memory usage for large datasets
-- **Parallel Processing**: Multi-threaded CPU operations
+Both algorithms are O(T²) in the series length. The offline recursion is
+vectorized per start point (one `pdf_rows` call gives the likelihood of every
+segment starting there); the online recursion is vectorized over run lengths
+at each step.
 
 ### Benchmarks
 
-*Theoretical estimates, must be benchmarked*
+Measured on an Apple M-series laptop, CPU, 4 threads, PyTorch 2.14:
 
-On a typical dataset (1000 time points, univariate):
+| Workload | Time |
+|---|---|
+| Offline `StudentT`, 1 000 points, `const_prior`, `truncate=-40` | 2.9 s (147 s before the vectorized likelihood of 1.1.0, same changepoints) |
+| Online `StudentT`, 1 000 points | 0.16 s |
+| Online `StudentT`, 5 000 points | 1.7 s |
+| Online `MultivariateT`, 10-D, 1 000 points | 0.56 s |
 
-| Method | Device | Time | Speedup |
-|--------|--------|------|---------|
-| Original (NumPy) | CPU | 2.3s | 1x |
-| PyTorch | CPU | 0.8s | 2.9x |
-| PyTorch | GPU (RTX 3080) | 0.05s | 46x |
+Accelerators: see the FAQ; MPS is slower than the CPU on all of these, CUDA
+is unmeasured.
 
 ## Examples
 
@@ -593,6 +594,147 @@ Q, P, Pcp = offcd.offline_changepoint_detection(data, prior_func, likelihood_fun
 from bayesian_changepoint_detection import offline_changepoint_detection
 Q, P, Pcp = offline_changepoint_detection(data, prior_func, likelihood)
 ```
+
+## FAQ
+
+### Which detector should I use, online or offline?
+
+`online_changepoint_detection` (Adams & MacKay 2007) processes the series one
+point at a time and, after each point, gives the posterior over how long the
+current segment has lasted. Use it for streams, or when you want to know how
+quickly a change would have been noticed. `offline_changepoint_detection`
+(Fearnhead 2006) sees the whole series and returns the posterior probability
+of a changepoint at each position, using data on both sides of it. Use it for
+retrospective analysis; it is usually sharper. Both cost O(T²).
+
+### The two detectors report the same change at indices one apart. Why?
+
+Different conventions, both documented in the docstrings:
+
+- Online (`get_map_changepoints`, `changepoint_probabilities`,
+  `viterbi_changepoints`): the index of the **first point of the new
+  segment**. A series whose first 80 points come from one regime reports 80.
+- Offline (`Pcp[j, t]`, and `torch.exp(Pcp).sum(0)[t]`): the probability that
+  a segment **ends at `t`**, i.e. the last point of the old regime. The same
+  series reports 79.
+
+So `offline index + 1 == online index`.
+
+### Does the scale of my data matter? (issue #34)
+
+Yes. The priors are on the mean and variance of the data, so their
+hyperparameters have units, and rescaling the data without rescaling them
+changes the model. For the univariate Normal-Gamma model (online `StudentT`
+with `alpha, beta, kappa, mu`; offline `StudentT` with `alpha0, beta0,
+kappa0, mu0`):
+
+| parameter | meaning | units |
+|---|---|---|
+| `mu` | prior mean of a segment | data units |
+| `kappa` | how many observations the prior mean is worth | none |
+| `alpha` | half the number of observations the variance prior is worth | none |
+| `beta` | `alpha` times the prior guess of the variance | data units² |
+
+Multiplying the data by `c` is equivalent to using `mu * c` and `beta * c²`
+with `kappa` and `alpha` unchanged. With `beta / alpha` far from the actual
+within-segment variance, or `mu` far from the data, the first points of
+every segment look surprising and the detector over- or under-reacts.
+
+Practical choices: standardize the data (subtract a typical level, divide by
+a typical within-segment standard deviation, ideally estimated on a
+calibration window rather than on the whole series), or set `mu` to the
+expected level and `beta = alpha * expected_variance`. The values in the
+examples (`alpha=0.1, beta=0.01, kappa=1, mu=0`) encode "around zero,
+variance about 0.1, but I am not sure": with `df = 2 * alpha = 0.2` the
+predictive is extremely heavy-tailed, which is why they still work on
+roughly unit-scale data.
+
+The multivariate classes work the same way but parametrize the prior on
+the covariance differently. Online `MultivariateT` takes `scale`, the
+Wishart scale `W` on the *precision*: to encode a prior covariance `C` pass
+`scale = inv(C) / dof` (default `I / dof`, unit prior covariance). Offline
+`MultivariateT` takes `Psi0`, the inverse-Wishart scale on the *covariance*
+side (`Psi0 = inv(W)`): the same prior covariance `C` is `Psi0 = dof0 * C`.
+Its default is `Psi0 = I`, which is `dof0` times tighter than the online
+default (issue #75). `mu`/`mu0` are in data units in both.
+
+### How do I make the detector more or less sensitive? (issue #31)
+
+In order of importance:
+
+1. **The hazard, i.e. the expected segment length.** `constant_hazard(lam)`
+   puts prior probability `1 / lam` on a change at every step. Larger `lam`
+   means fewer detections, more confidence needed, slightly longer delay;
+   smaller `lam` means more, earlier, and more false alarms. This is the main
+   knob and it is about the data, not the model: set it near the segment
+   length you expect.
+2. **How much you trust the prior versus the first points of a new segment.**
+   `kappa` (for the mean) and `alpha` (for the variance) act as pseudo-counts.
+   Small values let a few points establish a new regime quickly; larger values
+   make the detector wait for more evidence. `beta` and `mu` should describe
+   the data (previous question) rather than be used as sensitivity knobs.
+3. **How you read the output.** `changepoint_probabilities(R, lag)` trades
+   delay for confidence: a larger `lag` gives a more decisive probability,
+   `lag` observations later. `get_map_changepoints(R, min_separation=k)`
+   drops starts closer than `k` points to an earlier one, for when the
+   posterior hesitates between neighbouring points.
+
+Offline, the equivalent of the hazard is the segment-length prior:
+`const_prior(p=1/(T+1))` is the flat default; `geometric_prior(p=1/L)`
+encodes an expected segment length `L`; `negative_binomial_prior` allows a
+peaked length distribution. `truncate` only trades accuracy for speed.
+
+### My data are not normally distributed. Can I still use this? (issue #36)
+
+Every likelihood here assumes that **within a segment** the observations are
+independent and Gaussian, and it detects changes in the mean and/or the
+(co)variance of that Gaussian:
+
+| likelihood | within-segment model |
+|---|---|
+| online `StudentT`, offline `StudentT` | i.i.d. Normal, unknown mean and variance (Normal-Gamma prior) |
+| online `MultivariateT` | i.i.d. multivariate Normal, unknown mean and covariance (Normal-Wishart) |
+| offline `IndependentFeaturesLikelihood` | one Normal-Gamma model per dimension, independent |
+| offline `MultivariateT` | i.i.d. multivariate Normal, unknown mean and covariance (Normal-Wishart) |
+| offline `FullCovarianceLikelihood` | multivariate Normal with unknown covariance and **no mean parameter** (mean zero, Xuan & Murphy 2007): it detects covariance changes; segments that differ in mean are misread as scale changes, so use `MultivariateT` when means move |
+
+When the data are not Gaussian the detector still runs, and the question is
+what the misspecification does to it:
+
+- **Heavy tails or outliers**: single extreme points look like the start of
+  a new segment. The Student-t predictive already tolerates some of this;
+  a larger `lam` or `kappa` helps, and so does a transform (log for positive,
+  right-skewed quantities such as latencies or prices).
+- **Counts or bounded data**: a variance-stabilizing transform (square root
+  or Anscombe for counts, logit for proportions) usually gets you close
+  enough. A Poisson likelihood is on the roadmap (issue #23).
+- **Autocorrelation or slow drift**: the model has no notion of dynamics
+  within a segment, so a drift is reported as a sequence of small changes.
+  Differencing, or modelling residuals from a trend, is the usual fix.
+- **Changes in something other than mean or variance** (e.g. in
+  autocorrelation) are not detected.
+
+In short: use it when "piecewise stationary with Gaussian-ish noise" is a
+reasonable description after a transform, and check on a segment you trust
+that the residuals look plausible.
+
+### Why is it slow on my laptop with a GPU?
+
+Device selection is automatic and prefers CUDA or Apple MPS when present, but
+the online recursion is a sequential loop over small tensors, and each step
+on an accelerator pays a launch cost. Measured on an Apple M-series laptop
+(PyTorch 2.14), CPU against MPS:
+
+| workload | CPU | MPS |
+|---|---|---|
+| online `StudentT`, 1 000 points | 0.16 s | 2.5 s |
+| online `StudentT`, 5 000 points | 1.7 s | 11 s |
+| online `MultivariateT`, 10-D, 1 000 points | 0.56 s | 17 s |
+
+The offline detector needs float64 and always runs on the CPU when MPS is
+selected. Pass `device="cpu"` to both the likelihood and the detector unless
+you have measured otherwise on your hardware; CUDA has not been benchmarked
+(issue #43).
 
 ## Contributing
 

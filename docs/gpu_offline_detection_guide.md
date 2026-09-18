@@ -17,7 +17,10 @@ This guide provides complete, copy-paste examples for GPU-accelerated offline ch
 
 GPU-accelerated offline changepoint detection provides:
 
-- **10-100x speedup** over CPU for large datasets
+- Accelerator support through the same `device` argument. Note: measured on an
+  Apple M-series laptop the CPU is faster than MPS for the workloads in the
+  README FAQ, and the offline recursion runs on the CPU whenever MPS is
+  selected (it needs float64); CUDA is unmeasured (issue #43)
 - **Optimal memory utilization** with automatic GPU memory management
 - **Batch processing** capabilities for multiple time series
 - **Real-time processing** for streaming applications
