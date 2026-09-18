@@ -92,10 +92,11 @@ All notable changes to this project are documented here. The format follows
   as its state (`scale_inv`, Murphy 2007 eq. 255) and evaluates the
   predictive through a Cholesky factor of `T`; no matrix is inverted per
   step. The previous update inverted `W + 1e-6 I` and the result back every
-  step, and on a shrinking `W` that regularizer compounds: after 500
-  stationary points the posterior scale was 7.6% off and the log predictive
-  0.06 nats off, after 3000 points 67% and 0.78 nats (#59). `scale` is still
-  available as a property (`inv(scale_inv)`). About 1.5x faster in 10-D.
+  step, and on a shrinking `W` that regularizer compounds: on 2-D standard
+  normal data (`numpy.random.default_rng(0)`), after 500 stationary points
+  the posterior scale was 7.6% off and the log predictive 0.06 nats off,
+  after 3000 points 67% and 1.0 nats (#59). `scale` is still available as a
+  property (`inv(scale_inv)`). About 1.5-2x faster in 10-D.
 - Online `MultivariateT` predictive used the Wishart scale `W` where `W^{-1}`
   belongs (Murphy 2007, eq. 258), so the predictive covariance shrank with
   every observation and the run-length posterior collapsed to run lengths

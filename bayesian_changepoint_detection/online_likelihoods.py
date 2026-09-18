@@ -253,6 +253,13 @@ class MultivariateT(BaseLikelihood):
     scale : torch.Tensor
         ``W = inv(scale_inv)`` per run length, computed on access for
         compatibility; not used internally.
+
+    Notes
+    -----
+    All state is float32. The predictive's ``lgamma`` terms lose accuracy as
+    the degrees of freedom grow with the run length: about 1e-6 nats at
+    ``nu = 100``, 1e-3 at ``nu = 3000``, 6e-3 at ``nu = 50000``. Runs that
+    long are rare in practice, but that is the accuracy ceiling.
         
     Examples
     --------
@@ -328,8 +335,10 @@ class MultivariateT(BaseLikelihood):
         """
         L, info = torch.linalg.cholesky_ex(self.scale_inv)
         if bool((info != 0).any()):
+            # Jitter only the run lengths whose factorization failed.
+            failed = (info != 0).to(torch.float32)
             trace = torch.diagonal(self.scale_inv, dim1=-2, dim2=-1).sum(-1)
-            jitter = (1e-6 * trace / self.dims).clamp(min=1e-6)
+            jitter = (1e-6 * trace / self.dims).clamp(min=1e-6) * failed
             eye = torch.eye(self.dims, device=self.device, dtype=torch.float32)
             L, info = torch.linalg.cholesky_ex(
                 self.scale_inv + jitter.unsqueeze(-1).unsqueeze(-1) * eye
