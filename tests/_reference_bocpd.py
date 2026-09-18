@@ -67,3 +67,26 @@ def reference_offline_posterior(P, log_g):
             cp[e] = np.logaddexp(cp[e], lp)
             Pcp[j, e] = np.logaddexp(Pcp[j, e], lp)
     return total, np.exp(cp - total), Pcp - total
+
+def reference_map_segmentation(P, T, hazard):
+    """MAP segmentation under a constant hazard by enumerating all segmentations.
+
+    P[t, s] is the log marginal likelihood of data[t:s+1] (from the offline
+    closed form with the same conjugate prior as the online model). Each of
+    the T transitions after an observation is a changepoint (prob ``hazard``)
+    or growth (``1 - hazard``); the transition after the last observation is
+    growth, which is what a Viterbi pass picks when ``hazard < 0.5``.
+
+    Returns (best log joint probability, sorted list of segment starts > 0).
+    Exponential in T; use T <= 10.
+    """
+    best, best_starts = -np.inf, None
+    for bits in itertools.product([0, 1], repeat=T - 1):
+        starts = [0] + [t + 1 for t in range(T - 1) if bits[t]]
+        ends = starts[1:] + [T]
+        lp = sum(P[s, e - 1] for s, e in zip(starts, ends))
+        k = len(starts) - 1
+        lp += k * math.log(hazard) + (T - k) * math.log1p(-hazard)
+        if lp > best:
+            best, best_starts = lp, starts[1:]
+    return best, best_starts

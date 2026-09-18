@@ -506,115 +506,104 @@ def viterbi_changepoints(
     device: Optional[Union[str, torch.device]] = None
 ) -> Tuple[torch.Tensor, torch.Tensor]:
     """
-    Find the most likely sequence of changepoints using Viterbi algorithm.
-    
-    This finds the single most likely sequence of run lengths, rather than
-    maintaining the full posterior distribution.
-    
+    Most probable run-length path (Viterbi / max-product) under the BOCPD model.
+
+    ``online_changepoint_detection`` marginalizes over paths and returns the
+    posterior of the run length at each step. This function instead keeps,
+    for every run length, only the single best path leading to it, and
+    returns the jointly most probable sequence of run lengths, i.e. the MAP
+    segmentation of the series under the same model (hazard prior on
+    segment boundaries, conjugate predictive likelihood within a segment).
+
     Parameters
     ----------
     data : torch.Tensor
-        Time series data.
+        Time series of shape ``[T]`` or ``[T, D]``.
     hazard_function : callable
-        Hazard function for changepoint prior.
+        Maps a tensor of run lengths to changepoint probabilities.
     likelihood_model : OnlineLikelihood
-        Online likelihood model.
+        Fresh online likelihood model (it is consumed by this call).
     device : str, torch.device, or None, optional
         Device to place tensors on.
-        
+
     Returns
     -------
     run_lengths : torch.Tensor
-        Most likely run length sequence.
+        Shape ``[T + 1]``, dtype ``long``. ``run_lengths[t]`` is the run
+        length on the best path after ``t`` observations, with the same
+        meaning as the row index of ``R``: ``0`` means the segment ending
+        with ``data[t - 1]`` is closed and a new one starts at ``data[t]``.
     changepoints : torch.Tensor
-        Indices of detected changepoints.
-        
+        Data indices at which a new segment starts on the best path
+        (``t >= 1`` with ``run_lengths[t] == 0``), dtype ``long``; the same
+        convention as ``get_map_changepoints``.
+
     Examples
     --------
-    >>> run_lengths, changepoints = viterbi_changepoints(data, hazard_func, likelihood)
-    >>> print(f"Changepoints at: {changepoints}")
+    >>> import torch
+    >>> from functools import partial
+    >>> from bayesian_changepoint_detection import (
+    ...     viterbi_changepoints, constant_hazard, StudentT,
+    ... )
+    >>> _ = torch.manual_seed(0)
+    >>> data = torch.cat([torch.randn(80), torch.randn(80) + 5])
+    >>> run_lengths, changepoints = viterbi_changepoints(
+    ...     data, partial(constant_hazard, 100), StudentT(0.1, 0.01, 1, 0, device="cpu"),
+    ...     device="cpu",
+    ... )
+    >>> changepoints
+    tensor([80])
+
+    Notes
+    -----
+    Same recursion as the forward pass with ``max`` in place of ``sum``:
+
+        V[r + 1, t + 1] = V[r, t] + log p(x_t | r) + log(1 - H(r))
+        V[0, t + 1]     = max_r V[r, t] + log p(x_t | r) + log H(r)
+
+    in log space, vectorized over ``r`` at each step (O(T) per observation,
+    O(T^2) total, like the forward pass). Versions 1.0.x summed over ``r``
+    in the second line, which is neither the forward pass nor Viterbi, and
+    looped over ``r`` in Python.
     """
     device = get_device(device)
     data = ensure_tensor(data, device=device)
-    
-    if data.dim() == 1:
-        T = data.shape[0]
-    else:
-        T = data.shape[0]
-    
-    # Viterbi tables
-    log_probs = torch.full((T + 1, T + 1), float('-inf'), device=device)
+    if hasattr(likelihood_model, "device"):
+        likelihood_model.device = device
+    T = data.shape[0]
+    if T == 0:
+        raise ValueError("data must contain at least one observation")
+    if not bool(torch.isfinite(data).all()):
+        raise ValueError("data contains NaN or Inf; remove or impute them first")
+
+    V = torch.full((T + 1, T + 1), float('-inf'), device=device, dtype=torch.float32)
     backpointers = torch.zeros((T + 1, T + 1), device=device, dtype=torch.long)
-    
-    # Initialize
-    log_probs[0, 0] = 0.0
-    
-    # Forward pass
+    V[0, 0] = 0.0
+
     for t in range(T):
-        if data.dim() == 1:
-            x = data[t]
-        else:
-            x = data[t]
-        
-        pred_log_probs = likelihood_model.pdf(x)
-        
+        x = data[t]
+        log_pred = likelihood_model.pdf(x).to(device=device, dtype=torch.float32)  # [t+1]
         run_lengths = torch.arange(t + 1, device=device, dtype=torch.float32)
-        H = hazard_function(run_lengths)
-        
-        # Growth transitions (no changepoint)
-        for r in range(t + 1):
-            if log_probs[r, t] > float('-inf'):
-                new_prob = (
-                    log_probs[r, t] + 
-                    pred_log_probs[r] + 
-                    torch.log(1 - H[r])
-                )
-                if new_prob > log_probs[r + 1, t + 1]:
-                    log_probs[r + 1, t + 1] = new_prob
-                    backpointers[r + 1, t + 1] = r
-        
-        # Changepoint transitions
-        total_changepoint_prob = torch.tensor(float('-inf'), device=device)
-        for r in range(t + 1):
-            if log_probs[r, t] > float('-inf'):
-                cp_prob = (
-                    log_probs[r, t] + 
-                    pred_log_probs[r] + 
-                    torch.log(H[r])
-                )
-                total_changepoint_prob = torch.logaddexp(total_changepoint_prob, cp_prob)
-        
-        if total_changepoint_prob > log_probs[0, t + 1]:
-            log_probs[0, t + 1] = total_changepoint_prob
-            # Find best predecessor for changepoint
-            best_r = -1
-            best_prob = float('-inf')
-            for r in range(t + 1):
-                if log_probs[r, t] > float('-inf'):
-                    cp_prob = (
-                        log_probs[r, t] + 
-                        pred_log_probs[r] + 
-                        torch.log(H[r])
-                    )
-                    if cp_prob > best_prob:
-                        best_prob = cp_prob
-                        best_r = r
-            backpointers[0, t + 1] = best_r
-        
+        H = hazard_function(run_lengths).to(device=device, dtype=torch.float32)
+        scores = V[:t + 1, t] + log_pred                       # best path into each r, times x_t
+
+        # Growth: r -> r + 1, no changepoint.
+        V[1:t + 2, t + 1] = scores + torch.log1p(-H)
+        backpointers[1:t + 2, t + 1] = torch.arange(t + 1, device=device)
+
+        # Changepoint: every r -> 0; keep only the best predecessor.
+        cp_scores = scores + torch.log(H)
+        best = torch.argmax(cp_scores)
+        V[0, t + 1] = cp_scores[best]
+        backpointers[0, t + 1] = best
+
         likelihood_model.update_theta(x, t=t)
-    
-    # Backward pass to find best path
-    run_lengths = torch.zeros(T + 1, device=device, dtype=torch.long)
-    
-    # Find best final run length
-    best_final_r = torch.argmax(log_probs[:, T])
-    run_lengths[T] = best_final_r
-    
-    # Trace back
-    for t in reversed(range(T)):
-        run_lengths[t] = backpointers[run_lengths[t + 1], t + 1]
-    
-    # Extract changepoints (where run length resets to 0)
-    changepoints = torch.where(run_lengths[1:] == 0)[0] + 1
-    
-    return run_lengths, changepoints
+
+    # Backtrack from the best final run length.
+    path = torch.zeros(T + 1, device=device, dtype=torch.long)
+    path[T] = torch.argmax(V[:, T])
+    for t in range(T, 0, -1):
+        path[t - 1] = backpointers[path[t], t]
+
+    changepoints = torch.where(path[1:] == 0)[0] + 1
+    return path, changepoints

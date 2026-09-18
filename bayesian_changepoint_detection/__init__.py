@@ -20,6 +20,8 @@ from .bayesian_models import (
     offline_changepoint_detection,
     changepoint_probabilities,
     get_map_changepoints,
+    compute_run_length_posterior,
+    viterbi_changepoints,
 )
 from .hazard_functions import constant_hazard
 from .priors import const_prior, geometric_prior, negative_binomial_prior
@@ -37,6 +39,8 @@ __all__ = [
     'offline_changepoint_detection',
     'changepoint_probabilities',
     'get_map_changepoints',
+    'compute_run_length_posterior',
+    'viterbi_changepoints',
     'constant_hazard',
     'const_prior',
     'geometric_prior',
