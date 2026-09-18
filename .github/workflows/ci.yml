@@ -125,7 +125,7 @@ jobs:
           assert abs(offline - 40) <= 1, offline
           PY
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: dist
           path: dist/
