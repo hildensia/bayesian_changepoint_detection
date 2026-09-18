@@ -6,6 +6,11 @@ that verify the mathematics against an independent reference from tests that
 pin the library's current behaviour. The two markers make that distinction
 queryable (``pytest -m math`` runs only the proofs) and this hook keeps it
 complete: a test carrying neither marker, or both, fails collection.
+
+The hook runs after pytest's own ``-k``/``-m`` deselection (``trylast``), so
+it judges only the tests that were actually selected: a scoped run is never
+aborted by an untagged test elsewhere in the tree. A full run, which CI
+always does, checks every test.
 """
 
 import pytest
@@ -13,6 +18,7 @@ import pytest
 KIND_MARKERS = ("math", "behaviour")
 
 
+@pytest.hookimpl(trylast=True)
 def pytest_collection_modifyitems(config, items):
     untagged = []
     double = []

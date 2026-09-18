@@ -24,8 +24,6 @@ scipy_stats = pytest.importorskip("scipy.stats")
 
 from bayesian_changepoint_detection.offline_likelihoods import StudentT
 
-pytestmark = pytest.mark.math
-
 
 def sequential_log_marginal(x, alpha0, beta0, kappa0, mu0):
     """Chain-rule reference: sum of one-step predictive log densities."""
@@ -52,6 +50,7 @@ def sequential_log_marginal(x, alpha0, beta0, kappa0, mu0):
         (2.5, 0.1, 0.2, 4.0),
     ],
 )
+@pytest.mark.math
 def test_closed_form_equals_sequential_product(seed, alpha0, beta0, kappa0, mu0):
     generator = torch.Generator().manual_seed(seed)
     data = torch.randn(80, generator=generator, dtype=torch.float64) * 2.0 + 1.0
@@ -71,7 +70,10 @@ def test_closed_form_equals_sequential_product(seed, alpha0, beta0, kappa0, mu0)
         )
 
 
+@pytest.mark.behaviour
 def test_multivariate_input_sums_independent_dimensions():
+    """Same formula through two code paths (one call on [n, 3] against three
+    univariate calls), so this pins the contract, not the mathematics."""
     generator = torch.Generator().manual_seed(3)
     data = torch.randn(50, 3, generator=generator, dtype=torch.float64)
 
