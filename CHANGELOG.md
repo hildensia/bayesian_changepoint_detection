@@ -72,6 +72,16 @@ All notable changes to this project are documented here. The format follows
 - README FAQ: online vs offline, the one-index difference between their
   conventions, data scaling and prior units (#34), sensitivity (#31),
   non-Gaussian data (#36), CPU vs accelerator.
+- `docs/devices.md`: how the `device` argument is resolved by each detector,
+  the MPS-to-CPU fallback of the offline detector, what has been measured,
+  how to time your own workload, and the memory footprint of the run-length
+  and offline tables. It replaces `docs/gpu_offline_detection_guide.md` and
+  `docs/gpu_online_detection_guide.md` (2 500 lines written for the PyTorch
+  port and never executed: they unpacked the removed `changepoint_probs`
+  output, thresholded it at 0.5, linked to a guide that did not exist, and
+  recommended GPUs for series above 1 000 points on the strength of speedups
+  nobody had measured; #56). A test executes every Python block under
+  `docs/` so the prose cannot drift from the API again.
 - `maintainers` in `pyproject.toml` lists both maintainers.
 - `CONTRIBUTING.md` (setup, conventions, the `master` rule, releasing) and an
   explicit `.github/dependabot.yml` (GitHub Actions and pip, weekly, grouped;
