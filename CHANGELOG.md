@@ -35,6 +35,15 @@ All notable changes to this project are documented here. The format follows
 
 ### Added
 
+- `viterbi_changepoints` and `compute_run_length_posterior` are exported from
+  the package. `viterbi_changepoints` is now a vectorized max-product pass
+  that returns the most probable run-length path (the MAP segmentation under
+  the BOCPD model), verified against an exhaustive search over segmentations;
+  it runs in the same time as the forward pass (about 40x faster than
+  before on 160 points). The previous version summed over predecessors in the
+  changepoint transition, so its path scores were neither the forward pass
+  nor Viterbi, and it had no tests. Input validation as for the other
+  detectors.
 - `changepoint_probabilities(R, lag)`: `P(a new segment started at t)` judged
   `lag` observations later, i.e. `R[lag, t + lag]`, the quantity the original
   notebook plotted as `R[Nw, Nw:]`.

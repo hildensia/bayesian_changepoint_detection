@@ -93,7 +93,8 @@ probabilities and both likelihood families return log densities. The
 `logsumexp`). `online_changepoint_detection` does not: it exponentiates
 the predictive densities and updates `R` as ordinary probabilities with
 multiplication and sums, renormalizing each column. (`viterbi_changepoints`, by
-contrast, keeps its `log_probs` table in log space.) Check which
+contrast, keeps its score table `V` in log space and takes a max where the
+forward pass sums.) Check which
 convention a function uses before editing it.
 
 **Hazard functions return probabilities, and the API does not enforce the

@@ -373,6 +373,11 @@ probs = changepoint_probabilities(R, lag=10)     # probs[t] refers to data index
 print("P(change at t) > 0.5 at:", torch.where(probs[1:] > 0.5)[0] + 1)
 ```
 
+`viterbi_changepoints(data, hazard_func, likelihood)` returns the single most
+probable run-length path instead of the posterior, i.e. the MAP segmentation
+under the same model; its second value uses the same segment-start convention
+as `get_map_changepoints`.
+
 Why not simply threshold `R[0, :]`? Under a constant hazard the posterior
 probability of run length 0 is the hazard rate at every step, whatever the
 data say; the evidence for a change at `t` shows up in the *following*
