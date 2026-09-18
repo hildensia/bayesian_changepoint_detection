@@ -17,6 +17,8 @@ from bayesian_changepoint_detection.offline_likelihoods import (
     StudentT,
 )
 
+pytestmark = pytest.mark.behaviour
+
 
 @pytest.fixture
 def univariate_data():

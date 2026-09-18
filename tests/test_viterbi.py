@@ -47,6 +47,7 @@ def _segment_log_likelihoods(data):
     return P.numpy()
 
 
+@pytest.mark.math
 @pytest.mark.parametrize("seed", range(6))
 def test_matches_exhaustive_map_segmentation(seed):
     torch.manual_seed(seed)
@@ -65,6 +66,7 @@ def test_matches_exhaustive_map_segmentation(seed):
     assert changepoints.tolist() == expected_starts
 
 
+@pytest.mark.behaviour
 def test_path_bookkeeping():
     torch.manual_seed(1)
     data = torch.cat([torch.randn(30), torch.randn(30) + 4, torch.randn(30)])
@@ -82,6 +84,7 @@ def test_path_bookkeeping():
     assert abs(int(changepoints[0]) - 30) <= 2 and abs(int(changepoints[1]) - 60) <= 2
 
 
+@pytest.mark.behaviour
 def test_agrees_with_forward_pass_on_a_clear_change():
     torch.manual_seed(0)
     data = torch.cat([torch.randn(80), torch.randn(80) + 5])
@@ -92,6 +95,7 @@ def test_agrees_with_forward_pass_on_a_clear_change():
     assert changepoints.tolist() == get_map_changepoints(R).tolist()
 
 
+@pytest.mark.behaviour
 def test_no_change_series_gives_no_changepoints():
     torch.manual_seed(3)
     data = torch.randn(120)
@@ -102,6 +106,7 @@ def test_no_change_series_gives_no_changepoints():
     assert path[-1] == len(data)
 
 
+@pytest.mark.behaviour
 def test_multivariate():
     torch.manual_seed(1)
     data = torch.cat([torch.randn(40, 3), torch.randn(40, 3) + 3])
@@ -114,6 +119,7 @@ def test_multivariate():
     assert len(changepoints) == 1 and abs(int(changepoints[0]) - 40) <= 2
 
 
+@pytest.mark.behaviour
 def test_input_validation():
     hazard = partial(constant_hazard, 50, device="cpu")
     with pytest.raises(ValueError, match="at least one observation"):
@@ -124,6 +130,7 @@ def test_input_validation():
         )
 
 
+@pytest.mark.behaviour
 def test_compute_run_length_posterior_is_the_forward_pass():
     torch.manual_seed(2)
     data = torch.cat([torch.randn(20), torch.randn(20) + 3])
@@ -133,6 +140,7 @@ def test_compute_run_length_posterior_is_the_forward_pass():
     assert torch.equal(R, R_direct)
 
 
+@pytest.mark.behaviour
 def test_model_built_on_another_device_is_moved(monkeypatch):
     """viterbi_changepoints must move the model's prior tensors like the
     forward pass does, not only relabel its device attribute."""

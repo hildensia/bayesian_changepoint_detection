@@ -7,6 +7,8 @@ import torch
 
 from bayesian_changepoint_detection.online_likelihoods import MultivariateT, StudentT
 
+pytestmark = pytest.mark.behaviour
+
 
 class TestStudentT:
     """Test univariate Student's t-distribution likelihood."""

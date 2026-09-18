@@ -126,6 +126,9 @@ addopts = [
 markers = [
     "slow: marks tests as slow (deselect with '-m \"not slow\"')",
     "gpu: marks tests that require GPU",
+    # Every test carries exactly one of the next two (tests/conftest.py enforces it).
+    "math: checks a value against an independent reference: scipy, an exhaustive enumeration, a closed form from a paper",
+    "behaviour: pins current behaviour: API contracts, edge cases, device handling, detection on synthetic data, goldens from an earlier version",
 ]
 
 [tool.coverage.run]

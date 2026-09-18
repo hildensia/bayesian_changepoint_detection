@@ -24,6 +24,8 @@ scipy_stats = pytest.importorskip("scipy.stats")
 
 from bayesian_changepoint_detection.offline_likelihoods import StudentT
 
+pytestmark = pytest.mark.math
+
 
 def sequential_log_marginal(x, alpha0, beta0, kappa0, mu0):
     """Chain-rule reference: sum of one-step predictive log densities."""

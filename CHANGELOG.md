@@ -72,6 +72,10 @@ All notable changes to this project are documented here. The format follows
 - README FAQ: online vs offline, the one-index difference between their
   conventions, data scaling and prior units (#34), sensitivity (#31),
   non-Gaussian data (#36), CPU vs accelerator.
+- Test kind markers `math` (checked against an independent reference) and
+  `behaviour` (pins current behaviour); every test carries exactly one and
+  `tests/conftest.py` fails collection otherwise. `pytest -m math` runs the
+  88 tests that would fail if the mathematics were wrong.
 - `docs/devices.md`: how the `device` argument is resolved by each detector,
   the MPS-to-CPU fallback of the offline detector, what has been measured,
   how to time your own workload, and the memory footprint of the run-length

@@ -25,6 +25,7 @@ def _feed(model, observations):
     return log_probs
 
 
+@pytest.mark.math
 @pytest.mark.parametrize("seed", [0, 1, 2])
 def test_studentt_matches_torch_distribution_per_run_length(seed):
     torch.manual_seed(seed)
@@ -43,6 +44,7 @@ def test_studentt_matches_torch_distribution_per_run_length(seed):
     assert torch.allclose(got, expected, atol=1e-5, rtol=1e-5)
 
 
+@pytest.mark.math
 @pytest.mark.parametrize("seed,dims", [(0, 2), (1, 3), (2, 4)])
 def test_multivariate_t_matches_scipy_per_run_length(seed, dims):
     torch.manual_seed(seed)
@@ -76,6 +78,7 @@ def test_multivariate_t_matches_scipy_per_run_length(seed, dims):
     assert torch.allclose(got, expected, atol=1e-4, rtol=1e-4)
 
 
+@pytest.mark.math
 def test_multivariate_run_length_posterior_matches_independent_reference():
     """End-to-end: the run-length posterior produced with MultivariateT must
     match a NumPy/scipy implementation of the Normal-Wishart BOCPD recursion
@@ -110,6 +113,7 @@ def test_multivariate_run_length_posterior_matches_independent_reference():
     assert np.array_equal(R.numpy().argmax(axis=0), expected.argmax(axis=0))
 
 
+@pytest.mark.behaviour
 def test_default_multivariate_prior_has_unit_covariance():
     """E[precision] = dof * W must be the identity by default."""
     dims = 4
@@ -117,6 +121,7 @@ def test_default_multivariate_prior_has_unit_covariance():
     assert torch.allclose(model.dof0 * model.scale0, torch.eye(dims))
 
 
+@pytest.mark.math
 @pytest.mark.parametrize("n,dims,sd", [(600, 2, 1.0), (1500, 3, 0.1)])
 def test_multivariate_t_long_run_predictive_does_not_drift(n, dims, sd):
     """The predictive after a long run must match the closed-form
@@ -152,6 +157,7 @@ def test_multivariate_t_long_run_predictive_does_not_drift(n, dims, sd):
     assert np.allclose(model.scale_inv[-1].double().numpy(), TN, rtol=1e-4, atol=1e-2)
 
 
+@pytest.mark.behaviour
 def test_scale_property_is_the_inverse_of_the_state():
     model = MultivariateT(dims=3, device="cpu")
     for x in torch.randn(5, 3):
@@ -162,6 +168,7 @@ def test_scale_property_is_the_inverse_of_the_state():
     assert torch.allclose(model.scale[0], model.scale0, atol=1e-6)
 
 
+@pytest.mark.math
 def test_offline_and_online_multivariate_t_defaults_are_the_same_prior():
     """The offline MultivariateT's ``Psi0`` is the covariance-side scale
     (``inv(W)`` of the online class). With the defaults on both sides the

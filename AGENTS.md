@@ -31,6 +31,14 @@ CI lints with ruff (`ruff check` and `ruff format --check`, config in
 `pyproject.toml`); run both before pushing, or `pre-commit install` once.
 Tests must pass without a GPU.
 
+Every test is marked `math` (checked against an independent reference:
+scipy, an exhaustive enumeration, a closed form from a paper) or
+`behaviour` (pins current behaviour: contracts, edge cases, devices,
+synthetic-data detection, goldens from an earlier version);
+`tests/conftest.py` rejects a test with neither or both. `pytest -m math`
+runs only the proofs, which is the set to watch when changing the
+mathematics (see "Changing the math").
+
 Two things that surprise people:
 
 - **The suite is dramatically slower on a machine with MPS or CUDA**, because

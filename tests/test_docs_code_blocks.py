@@ -12,6 +12,8 @@ from pathlib import Path
 
 import pytest
 
+pytestmark = pytest.mark.behaviour
+
 DOCS = sorted((Path(__file__).resolve().parent.parent / "docs").glob("*.md"))
 FENCE = re.compile(r"^```python[^\n]*\n(.*?)^```", re.MULTILINE | re.DOTALL)
 
