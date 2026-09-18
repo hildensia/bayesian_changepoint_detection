@@ -29,7 +29,8 @@ All notable changes to this project are documented here. The format follows
 - Distribution name on PyPI is `bayescd` (unchanged since 0.4); the
   `bayesian-changepoint-detection` name belongs to an unrelated project.
   `setup.py`, `setup.cfg`, `requirements.txt` and `uv.lock` were removed;
-  `pyproject.toml` is the single source of metadata. `numpy` and `scipy`
+  `pyproject.toml` is the single source of metadata (license as an SPDX
+  expression with `license-files`, per PEP 639; setuptools >= 77). `numpy` and `scipy`
   moved to the `dev` extra, `matplotlib`/`seaborn`/`numpy` to a new `plot`
   extra; the library itself depends only on `torch`. Python 3.8 dropped.
 
@@ -51,7 +52,10 @@ All notable changes to this project are documented here. The format follows
   likelihood of every segment starting at `t` in one vectorized call, and
   `setup(data)` to precompute sufficient statistics.
 - Likelihood models can be moved between devices with `.to(device)`.
-- CI workflow (GitHub Actions) running the test suite on Python 3.9–3.12.
+- CI workflow (GitHub Actions) running the test suite on Python 3.9–3.13,
+  plus a `build` job: sdist and wheel, `twine check --strict`, and a smoke
+  test that installs the wheel into a clean environment and runs both
+  detectors.
 - `AGENTS.md` with repository conventions.
 - `CHANGELOG.md` (this file) and `.flake8`.
 - `CONTRIBUTING.md` (setup, conventions, the `master` rule, releasing) and an
