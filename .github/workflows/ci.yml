@@ -13,7 +13,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        python-version: ["3.9", "3.10", "3.11", "3.12"]
+        python-version: ["3.9", "3.10", "3.11", "3.12", "3.13"]
     steps:
       - uses: actions/checkout@v7
 
@@ -32,3 +32,62 @@ jobs:
 
       - name: Run tests
         run: pytest tests/ -q
+
+  build:
+    # Build the sdist and wheel, check their metadata, then install the wheel
+    # into a clean environment (no repository checkout on sys.path) and run
+    # the two detectors once. This is what a `pip install bayescd` user gets.
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+
+      - name: Build distributions
+        run: |
+          python -m pip install --upgrade pip build twine
+          python -m build
+          twine check --strict dist/*
+
+      - name: Smoke-test the wheel in a clean environment
+        run: |
+          python -m venv /tmp/smoke
+          /tmp/smoke/bin/pip install --quiet torch --index-url https://download.pytorch.org/whl/cpu
+          /tmp/smoke/bin/pip install --quiet dist/*.whl
+          cd /tmp
+          /tmp/smoke/bin/python - <<'PY'
+          from functools import partial
+          import torch
+          import bayesian_changepoint_detection as bcd
+          from bayesian_changepoint_detection import (
+              offline_changepoint_detection, online_changepoint_detection,
+              get_map_changepoints, constant_hazard, const_prior, StudentT,
+          )
+          from bayesian_changepoint_detection.offline_likelihoods import StudentT as OfflineStudentT
+
+          print("bayescd", bcd.__version__)
+          torch.manual_seed(0)
+          data = torch.cat([torch.randn(40), torch.randn(40) + 5])
+          R, _ = online_changepoint_detection(
+              data, partial(constant_hazard, 50, device="cpu"),
+              StudentT(0.1, 0.01, 1.0, 0.0, device="cpu"), device="cpu",
+          )
+          online = get_map_changepoints(R, min_separation=5).tolist()
+          Q, P, Pcp = offline_changepoint_detection(
+              data, partial(const_prior, p=1 / (len(data) + 1)),
+              OfflineStudentT(device="cpu"), device="cpu",
+          )
+          offline = int(torch.argmax(torch.exp(Pcp).sum(0))) + 1
+          print("online", online, "offline", offline)
+          assert len(online) == 1 and abs(online[0] - 40) <= 1, online
+          assert abs(offline - 40) <= 1, offline
+          PY
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dist
+          path: dist/
+          if-no-files-found: error

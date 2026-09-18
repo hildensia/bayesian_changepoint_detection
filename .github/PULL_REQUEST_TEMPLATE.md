@@ -12,7 +12,7 @@
 
 ## Checklist
 
-- [ ] CI is green on all four `test (3.x)` legs
+- [ ] CI is green on every `test (3.x)` leg and on `build`
 - [ ] Tests added or updated for behaviour changes
 - [ ] `CHANGELOG.md` has an entry under `[Unreleased]`
 - [ ] Docs updated (`README.md`, docstrings, `examples/`) when user-facing behaviour changed
