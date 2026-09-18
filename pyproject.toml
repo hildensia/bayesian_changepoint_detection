@@ -46,7 +46,7 @@ dev = [
     "black>=23.0.0",
     "isort>=5.12.0",
     "flake8>=6.1.0",
-    "mypy>=1.0.0",
+    "mypy>=2.3.1",
     "jupyter>=1.0.0",
     "notebook>=6.4.0",
 ]
