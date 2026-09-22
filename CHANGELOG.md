@@ -14,6 +14,13 @@ All notable changes to this project are documented here. The format follows
   so the two stay in sync. The `docs` extra now installs MkDocs instead of
   Sphinx, which had no configuration in the repository. Not published yet.
 
+### Fixed
+
+- `constant_hazard(lam, r)` raises `ValueError` for `lam < 1` and for NaN.
+  It used to accept any positive `lam`, so `0 < lam < 1` returned a hazard
+  `1 / lam` above 1, which is not a probability and made the online
+  detector's growth probabilities negative. `lam >= 1` behaves as before.
+
 ### Changed
 
 - The release workflow uploads from the `pypi` GitHub environment (`testpypi`
