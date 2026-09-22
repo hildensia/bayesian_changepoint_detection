@@ -478,6 +478,14 @@ side (`Psi0 = inv(W)`): the same prior covariance `C` is `Psi0 = dof0 * C`,
 and the default `dof0 * I` is the same unit prior covariance as online.
 `mu`/`mu0` are in data units in both.
 
+**Data far from zero** (timestamps, prices, counters) is handled without
+loss of precision: the offline likelihoods compute their statistics on data
+centered on its mean, and the online ones keep their state relative to the
+first observation, so an offset of 1e8 gives the same result as the same
+series around 0. Pass such data as float64 (a `float64` tensor or NumPy
+array): a float32 value near 1e8 is only resolved to steps of 8, before
+the detector ever sees it.
+
 ### How do I make the detector more or less sensitive? (issue #31)
 
 In order of importance:

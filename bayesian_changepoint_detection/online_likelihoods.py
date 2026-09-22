@@ -38,6 +38,13 @@ class BaseLikelihood(ABC):
         self.device = get_device(device)
         self.t = 0  # Current time step
 
+    def _subtract_shift(self, x: torch.Tensor, shift) -> torch.Tensor:
+        """``x - shift`` as float32, with the subtraction in float64 where
+        the device has it (not MPS). ``shift`` is a tuple of floats."""
+        wide = torch.float32 if self.device.type == "mps" else torch.float64
+        shift = torch.as_tensor(shift, dtype=wide, device=self.device)
+        return (x.to(wide) - shift).to(torch.float32)
+
     def prune(self, n: int) -> None:
         """
         Keep the posterior parameters of run lengths ``0 .. n-1`` only.
@@ -143,7 +150,7 @@ class StudentT(BaseLikelihood):
     mean and variance.
     """
 
-    _run_length_state = ("alpha", "beta", "kappa", "mu")
+    _run_length_state = ("alpha", "beta", "kappa", "_mu_c")
 
     def __init__(
         self,
@@ -165,7 +172,31 @@ class StudentT(BaseLikelihood):
         self.alpha = torch.tensor([alpha], device=self.device, dtype=torch.float32)
         self.beta = torch.tensor([beta], device=self.device, dtype=torch.float32)
         self.kappa = torch.tensor([kappa], device=self.device, dtype=torch.float32)
-        self.mu = torch.tensor([mu], device=self.device, dtype=torch.float32)
+        # Means are kept relative to the first observation (``_shift``), so
+        # the float32 state does not cancel for data far from zero (the
+        # model is translation-equivariant: shifting the data and ``mu``
+        # together leaves every predictive density unchanged).
+        self._shift = 0.0
+        self._shift_set = False
+        self._mu0_c = float(mu)
+        self._mu_c = torch.tensor([mu], device=self.device, dtype=torch.float32)
+
+    @property
+    def mu(self) -> torch.Tensor:
+        """Posterior mean for every run length (float32, for inspection)."""
+        return self._mu_c + self._shift
+
+    def _center(self, data: torch.Tensor) -> torch.Tensor:
+        """The observation relative to the shift, which is set to the first
+        observation seen (the state is still the prior at that point)."""
+        if not self._shift_set:
+            self._shift = float(data.reshape(()))
+            self._shift_set = True
+            self._mu0_c = float(self.mu0) - self._shift
+            self._mu_c = torch.full_like(self._mu_c, self._mu0_c)
+        # A Python float: the subtraction is float64 on every device, and a
+        # scalar enters the tensor arithmetic below without building tensors.
+        return float(data.reshape(())) - self._shift
 
     def pdf(self, data: torch.Tensor) -> torch.Tensor:
         """
@@ -184,12 +215,13 @@ class StudentT(BaseLikelihood):
         data = ensure_tensor(data, device=self.device)
         if data.numel() != 1:
             raise ValueError("StudentT expects scalar input data")
+        data = self._center(data)
 
         self.t += 1
 
         # Student's t-distribution parameters
         df = 2 * self.alpha
-        loc = self.mu
+        loc = self._mu_c
         scale = torch.sqrt(self.beta * (self.kappa + 1) / (self.alpha * self.kappa))
 
         # Log probabilities for all run lengths at once (same formula as
@@ -214,19 +246,22 @@ class StudentT(BaseLikelihood):
         data : torch.Tensor
             New data point to incorporate.
         """
-        data = ensure_tensor(data, device=self.device)
+        data = self._center(ensure_tensor(data, device=self.device))
 
         # Compute updated parameters
-        mu_new = (self.kappa * self.mu + data) / (self.kappa + 1)
+        mu_new = (self.kappa * self._mu_c + data) / (self.kappa + 1)
         kappa_new = self.kappa + 1.0
         alpha_new = self.alpha + 0.5
-        beta_new = self.beta + (self.kappa * (data - self.mu) ** 2) / (
+        beta_new = self.beta + (self.kappa * (data - self._mu_c) ** 2) / (
             2.0 * (self.kappa + 1.0)
         )
 
         # Concatenate with initial parameters to maintain history
-        self.mu = torch.cat(
-            [torch.tensor([self.mu0], device=self.device, dtype=torch.float32), mu_new]
+        self._mu_c = torch.cat(
+            [
+                torch.tensor([self._mu0_c], device=self.device, dtype=torch.float32),
+                mu_new,
+            ]
         )
         self.kappa = torch.cat(
             [
@@ -306,7 +341,7 @@ class MultivariateT(BaseLikelihood):
     to multiple dimensions, naturally handling correlations between variables.
     """
 
-    _run_length_state = ("dof", "kappa", "mu", "scale_inv")
+    _run_length_state = ("dof", "kappa", "_mu_c", "scale_inv")
 
     def __init__(
         self,
@@ -350,8 +385,29 @@ class MultivariateT(BaseLikelihood):
         # Initialize parameter arrays (will grow over time)
         self.dof = torch.tensor([dof], device=self.device, dtype=torch.float32)
         self.kappa = torch.tensor([kappa], device=self.device, dtype=torch.float32)
-        self.mu = mu.unsqueeze(0)  # Shape: [1, dims]
+        # Means relative to the first observation (``_shift``, a tuple of
+        # floats so ``to()`` leaves it alone); see ``StudentT``.
+        self._shift = (0.0,) * dims
+        self._shift_set = False
+        self._mu0_c = mu.to(torch.float32)
+        self._mu_c = self._mu0_c.unsqueeze(0)  # Shape: [1, dims]
         self.scale_inv = self.scale_inv0.unsqueeze(0)  # Shape: [1, dims, dims]
+
+    @property
+    def mu(self) -> torch.Tensor:
+        """Posterior mean for every run length, ``[t, dims]`` (float32)."""
+        return self._mu_c + torch.as_tensor(
+            self._shift, dtype=torch.float32, device=self._mu_c.device
+        )
+
+    def _center(self, data: torch.Tensor) -> torch.Tensor:
+        """The observation relative to the shift (the first observation)."""
+        if not self._shift_set:
+            self._shift = tuple(float(v) for v in data.detach().cpu().double())
+            self._shift_set = True
+            self._mu0_c = self._subtract_shift(self.mu0, self._shift)
+            self._mu_c = self._mu0_c.unsqueeze(0).expand_as(self._mu_c).clone()
+        return self._subtract_shift(data, self._shift)
 
     @property
     def scale(self) -> torch.Tensor:
@@ -401,6 +457,7 @@ class MultivariateT(BaseLikelihood):
         data = ensure_tensor(data, device=self.device)
         if data.shape != (self.dims,):
             raise ValueError(f"Expected data shape [{self.dims}], got {data.shape}")
+        data = self._center(data)
 
         self.t += 1
 
@@ -415,7 +472,7 @@ class MultivariateT(BaseLikelihood):
         scale_factor = (self.kappa * t_dof) / (self.kappa + 1)
 
         L = self._cholesky()  # [t, D, D]
-        diff = data.unsqueeze(0) - self.mu  # [t, D]
+        diff = data.unsqueeze(0) - self._mu_c  # [t, D]
         y = torch.linalg.solve_triangular(L, diff.unsqueeze(-1), upper=False)
         mahal_dist = scale_factor * (y.squeeze(-1) ** 2).sum(-1)
         logdet = 2.0 * torch.log(torch.diagonal(L, dim1=-2, dim2=-1)).sum(
@@ -441,13 +498,13 @@ class MultivariateT(BaseLikelihood):
         data : torch.Tensor
             New data vector to incorporate.
         """
-        data = ensure_tensor(data, device=self.device)
+        data = self._center(ensure_tensor(data, device=self.device))
 
         # Compute differences from current means
-        centered = data.unsqueeze(0) - self.mu  # Shape: [t, dims]
+        centered = data.unsqueeze(0) - self._mu_c  # Shape: [t, dims]
 
         # Update parameters using conjugate prior formulas
-        mu_new = (self.kappa.unsqueeze(1) * self.mu + data.unsqueeze(0)) / (
+        mu_new = (self.kappa.unsqueeze(1) * self._mu_c + data.unsqueeze(0)) / (
             self.kappa + 1
         ).unsqueeze(1)
 
@@ -461,7 +518,7 @@ class MultivariateT(BaseLikelihood):
         ).unsqueeze(-1) * torch.bmm(centered.unsqueeze(2), centered.unsqueeze(1))
 
         # Concatenate with initial parameters
-        self.mu = torch.cat([self.mu0.unsqueeze(0), mu_new])
+        self._mu_c = torch.cat([self._mu0_c.unsqueeze(0), mu_new])
         self.kappa = torch.cat(
             [
                 torch.tensor([self.kappa0], device=self.device, dtype=torch.float32),
@@ -614,7 +671,7 @@ class NormalKnownVariance(BaseLikelihood):
     >>> likelihood.update_theta(torch.tensor(0.3))
     """
 
-    _run_length_state = ("mu", "var")
+    _run_length_state = ("_mu_c", "var")
 
     def __init__(
         self,
@@ -632,10 +689,29 @@ class NormalKnownVariance(BaseLikelihood):
         self.variance = variance
         self.mu0 = mu
         self.prior_variance = prior_variance
-        self.mu = torch.tensor([mu], device=self.device, dtype=torch.float32)
+        # Means relative to the first observation; see ``StudentT``.
+        self._shift = 0.0
+        self._shift_set = False
+        self._mu0_c = float(mu)
+        self._mu_c = torch.tensor([mu], device=self.device, dtype=torch.float32)
         self.var = torch.tensor(
             [prior_variance], device=self.device, dtype=torch.float32
         )
+
+    @property
+    def mu(self) -> torch.Tensor:
+        """Posterior mean for every run length (float32, for inspection)."""
+        return self._mu_c + self._shift
+
+    def _center(self, data: torch.Tensor) -> torch.Tensor:
+        if not self._shift_set:
+            self._shift = float(data.reshape(()))
+            self._shift_set = True
+            self._mu0_c = float(self.mu0) - self._shift
+            self._mu_c = torch.full_like(self._mu_c, self._mu0_c)
+        # A Python float: the subtraction is float64 on every device, and a
+        # scalar enters the tensor arithmetic below without building tensors.
+        return float(data.reshape(())) - self._shift
 
     def pdf(self, data: torch.Tensor) -> torch.Tensor:
         """
@@ -654,13 +730,13 @@ class NormalKnownVariance(BaseLikelihood):
         data = ensure_tensor(data, device=self.device)
         if data.numel() != 1:
             raise ValueError("NormalKnownVariance expects scalar input data")
-        x = data.reshape(()).to(torch.float32)
+        x = self._center(data)
         self.t += 1
         predictive_var = self.var + self.variance
         return -0.5 * (
             math.log(2.0 * math.pi)
             + torch.log(predictive_var)
-            + (x - self.mu) ** 2 / predictive_var
+            + (x - self._mu_c) ** 2 / predictive_var
         )
 
     def update_theta(self, data: torch.Tensor, **kwargs) -> None:
@@ -673,12 +749,12 @@ class NormalKnownVariance(BaseLikelihood):
         data : torch.Tensor
             The observation just seen.
         """
-        x = ensure_tensor(data, device=self.device).reshape(()).to(torch.float32)
+        x = self._center(ensure_tensor(data, device=self.device))
         var_new = 1.0 / (1.0 / self.var + 1.0 / self.variance)
-        mu_new = var_new * (self.mu / self.var + x / self.variance)
-        prior_mu = torch.tensor([self.mu0], device=self.device, dtype=torch.float32)
+        mu_new = var_new * (self._mu_c / self.var + x / self.variance)
+        prior_mu = torch.tensor([self._mu0_c], device=self.device, dtype=torch.float32)
         prior_var = torch.tensor(
             [self.prior_variance], device=self.device, dtype=torch.float32
         )
-        self.mu = torch.cat([prior_mu, mu_new])
+        self._mu_c = torch.cat([prior_mu, mu_new])
         self.var = torch.cat([prior_var, var_new])

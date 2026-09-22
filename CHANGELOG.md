@@ -46,6 +46,13 @@ All notable changes to this project are documented here. The format follows
 
 ### Fixed
 
+- Online `StudentT`, `MultivariateT` and `NormalKnownVariance` keep their
+  float32 state relative to the first observation. For data far from zero
+  the state used to cancel: with unit noise at an offset of 1e6 the
+  run-length posterior moved by up to 0.84 and three spurious changepoints
+  appeared. With float64 input the posterior now matches a float64
+  reference to 3e-6 at offsets up to 1e8. `mu` is a read-only property in
+  data units; the state that `prune` slices is `_mu_c`.
 - Offline likelihoods stay exact for data far from zero (issue #55). The
   prefix sums are now taken on data centered on its mean, and the
   multivariate determinants use the matrix determinant lemma for the
