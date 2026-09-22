@@ -26,7 +26,7 @@ def _nan_to_neg_inf(x: torch.Tensor) -> torch.Tensor:
     return torch.where(torch.isnan(x), torch.full_like(x, float("-inf")), x)
 
 
-def _validate_data(data: torch.Tensor, likelihood_model) -> None:
+def _validate_data(data: torch.Tensor, likelihood_model) -> torch.Tensor:
     """Check ``data`` against the input contract shared by all detectors.
 
     ``data`` must be ``[T]`` (univariate) or ``[T, D]`` (one row per
@@ -35,6 +35,10 @@ def _validate_data(data: torch.Tensor, likelihood_model) -> None:
     that many components; a ``[D, T]`` tensor is reported as transposed.
     Raises ``ValueError`` instead of letting a bad input fail deep inside a
     likelihood, or worse, run and return a result for the wrong model.
+
+    Returns ``data``, reshaped to ``[T, 1]`` when it is ``[T]`` and the
+    likelihood declares ``dims == 1``: such a likelihood takes a length-1
+    vector per observation, not a scalar.
     """
     shape = tuple(data.shape)
     if data.dim() not in (1, 2):
@@ -57,6 +61,9 @@ def _validate_data(data: torch.Tensor, likelihood_model) -> None:
             if data.dim() == 2 and shape[0] == dims:
                 message += f"; if it is [D, T], pass data.T (shape {shape[::-1]})"
             raise ValueError(message)
+        if data.dim() == 1:
+            data = data.unsqueeze(1)
+    return data
 
 
 def offline_changepoint_detection(
@@ -178,7 +185,7 @@ def offline_changepoint_detection(
             stacklevel=2,
         )
 
-    _validate_data(data, likelihood_model)
+    data = _validate_data(data, likelihood_model)
     n = data.shape[0]  # First dimension is time
 
     # Precompute per-dataset sufficient statistics (cumulative sums) so that
@@ -362,11 +369,12 @@ def online_changepoint_detection(
     if device is None and hasattr(likelihood_model, "device"):
         device = likelihood_model.device
     device = get_device(device)
+    # Validate before touching the caller's model, so a rejected input
+    # leaves it where it was.
+    data = ensure_tensor(data, device=device)
+    data = _validate_data(data, likelihood_model)
     if hasattr(likelihood_model, "to"):
         likelihood_model.to(device)
-    data = ensure_tensor(data, device=device)
-
-    _validate_data(data, likelihood_model)
     T = data.shape[0]  # First dimension is time
 
     # Initialize run length probability matrix
@@ -624,10 +632,12 @@ def viterbi_changepoints(
     if device is None and hasattr(likelihood_model, "device"):
         device = likelihood_model.device
     device = get_device(device)
+    # Validate before touching the caller's model, so a rejected input
+    # leaves it where it was.
+    data = ensure_tensor(data, device=device)
+    data = _validate_data(data, likelihood_model)
     if hasattr(likelihood_model, "to"):
         likelihood_model.to(device)
-    data = ensure_tensor(data, device=device)
-    _validate_data(data, likelihood_model)
     T = data.shape[0]
 
     V = torch.full((T + 1, T + 1), float("-inf"), device=device, dtype=torch.float32)

@@ -121,6 +121,37 @@ def test_matching_dimensions_still_run(detector):
     run(torch.randn(25, 2), multivariate(2))
 
 
+def test_univariate_series_fits_a_one_dimensional_multivariate_model(detector):
+    # [T] data and dims=1: each observation is taken as a length-1 vector.
+    run, _, multivariate = detector
+    torch.manual_seed(3)
+    run(torch.randn(25), multivariate(1))
+
+
+class RecordingStudentT(online_likelihoods.StudentT):
+    """Online StudentT that records every ``to`` call."""
+
+    def __init__(self):
+        super().__init__(device="cpu")
+        self.moves = []
+
+    def to(self, device):
+        self.moves.append(device)
+        return super().to(device)
+
+
+@pytest.mark.parametrize("run", [run_online, run_viterbi], ids=["online", "viterbi"])
+def test_a_rejected_input_does_not_move_the_model(run):
+    # Validation comes before likelihood_model.to(device), so a caller's
+    # model is not moved to another device by a call that then fails.
+    likelihood = RecordingStudentT()
+    with pytest.raises(ValueError):
+        run(torch.tensor(1.0), likelihood)
+    assert likelihood.moves == []
+    run(torch.randn(5), likelihood)
+    assert likelihood.moves  # the check above is not vacuous
+
+
 class TestOfflineMultivariateTDims:
     def test_explicit_dims_that_disagree_with_the_data_raise_in_pdf(self):
         # The same check guards direct calls, which bypass the detector.

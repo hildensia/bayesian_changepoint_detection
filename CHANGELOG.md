@@ -23,7 +23,9 @@ All notable changes to this project are documented here. The format follows
   complex data ran, and offline `MultivariateT(dims=3)` silently accepted
   univariate data or a transposed `[3, T]` tensor (read as three
   observations of dimension T). A `[D, T]` tensor now gets a "pass data.T"
-  hint. Valid inputs give the same results as before.
+  hint. `[T]` data with a `dims=1` multivariate likelihood is taken as
+  `[T, 1]` (the online detector used to fail on it). Valid inputs give the
+  same results as before.
 - Offline `MultivariateT` no longer overwrites `dims=None` with the first
   series' dimension; an explicit `dims` that disagrees with the data raises
   `ValueError` from `pdf` and `pdf_rows` too.
