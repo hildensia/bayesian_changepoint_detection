@@ -26,6 +26,46 @@ def _nan_to_neg_inf(x: torch.Tensor) -> torch.Tensor:
     return torch.where(torch.isnan(x), torch.full_like(x, float("-inf")), x)
 
 
+def _validate_data(data: torch.Tensor, likelihood_model) -> torch.Tensor:
+    """Check ``data`` against the input contract shared by all detectors.
+
+    ``data`` must be ``[T]`` (univariate) or ``[T, D]`` (one row per
+    observation), non-empty, real and finite. When the likelihood declares
+    its dimension (``likelihood_model.dims``), each observation must have
+    that many components; a ``[D, T]`` tensor is reported as transposed.
+    Raises ``ValueError`` instead of letting a bad input fail deep inside a
+    likelihood, or worse, run and return a result for the wrong model.
+
+    Returns ``data``, reshaped to ``[T, 1]`` when it is ``[T]`` and the
+    likelihood declares ``dims == 1``: such a likelihood takes a length-1
+    vector per observation, not a scalar.
+    """
+    shape = tuple(data.shape)
+    if data.dim() not in (1, 2):
+        raise ValueError(f"data must have shape [T] or [T, D], got {list(shape)}")
+    if shape[0] == 0:
+        raise ValueError("data must contain at least one observation")
+    if data.is_complex():
+        raise ValueError(f"data must be real, got dtype {data.dtype}")
+    if not bool(torch.isfinite(data).all()):
+        raise ValueError("data contains NaN or Inf; remove or impute them first")
+    dims = getattr(likelihood_model, "dims", None)
+    if isinstance(dims, int) and not isinstance(dims, bool):
+        per_observation = 1 if data.dim() == 1 else shape[1]
+        if per_observation != dims:
+            message = (
+                f"the likelihood expects {dims}-dimensional observations, but "
+                f"data of shape {list(shape)} has {per_observation} per "
+                "observation"
+            )
+            if data.dim() == 2 and shape[0] == dims:
+                message += f"; if it is [D, T], pass data.T (shape {shape[::-1]})"
+            raise ValueError(message)
+        if data.dim() == 1:
+            data = data.unsqueeze(1)
+    return data
+
+
 def offline_changepoint_detection(
     data: torch.Tensor,
     prior_function: Callable[[int], float],
@@ -145,11 +185,8 @@ def offline_changepoint_detection(
             stacklevel=2,
         )
 
+    data = _validate_data(data, likelihood_model)
     n = data.shape[0]  # First dimension is time
-    if n == 0:
-        raise ValueError("data must contain at least one observation")
-    if not bool(torch.isfinite(data).all()):
-        raise ValueError("data contains NaN or Inf; remove or impute them first")
 
     # Precompute per-dataset sufficient statistics (cumulative sums) so that
     # every pdf_rows call below is a single vectorized pass. The caller's
@@ -332,15 +369,13 @@ def online_changepoint_detection(
     if device is None and hasattr(likelihood_model, "device"):
         device = likelihood_model.device
     device = get_device(device)
+    # Validate before touching the caller's model, so a rejected input
+    # leaves it where it was.
+    data = ensure_tensor(data, device=device)
+    data = _validate_data(data, likelihood_model)
     if hasattr(likelihood_model, "to"):
         likelihood_model.to(device)
-    data = ensure_tensor(data, device=device)
-
     T = data.shape[0]  # First dimension is time
-    if T == 0:
-        raise ValueError("data must contain at least one observation")
-    if not bool(torch.isfinite(data).all()):
-        raise ValueError("data contains NaN or Inf; remove or impute them first")
 
     # Initialize run length probability matrix
     R = torch.zeros(T + 1, T + 1, device=device, dtype=torch.float32)
@@ -348,11 +383,7 @@ def online_changepoint_detection(
 
     # Process each data point sequentially
     for t in range(T):
-        # Get current data point
-        if data.dim() == 1:
-            x = data[t]
-        else:
-            x = data[t]
+        x = data[t]  # a scalar for [T] data, a [D] vector for [T, D]
 
         # Evaluate predictive probabilities under current parameters
         # This gives us p(x_t | x_{1:t-1}, r_{t-1}) for all possible run lengths
@@ -601,14 +632,13 @@ def viterbi_changepoints(
     if device is None and hasattr(likelihood_model, "device"):
         device = likelihood_model.device
     device = get_device(device)
+    # Validate before touching the caller's model, so a rejected input
+    # leaves it where it was.
+    data = ensure_tensor(data, device=device)
+    data = _validate_data(data, likelihood_model)
     if hasattr(likelihood_model, "to"):
         likelihood_model.to(device)
-    data = ensure_tensor(data, device=device)
     T = data.shape[0]
-    if T == 0:
-        raise ValueError("data must contain at least one observation")
-    if not bool(torch.isfinite(data).all()):
-        raise ValueError("data contains NaN or Inf; remove or impute them first")
 
     V = torch.full((T + 1, T + 1), float("-inf"), device=device, dtype=torch.float32)
     backpointers = torch.zeros((T + 1, T + 1), device=device, dtype=torch.long)

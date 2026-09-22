@@ -155,8 +155,11 @@ See the [FAQ](https://github.com/hildensia/bayesian_changepoint_detection/blob/m
 
 ### Multivariate data
 
-Pass a `[T, d]` tensor and a multivariate likelihood; everything else is the
-same.
+Pass a `[T, d]` tensor, one row per observation, and a multivariate
+likelihood; everything else is the same. All three detectors check their
+input first: data must be `[T]` or `[T, d]`, non-empty, real and finite,
+and match the likelihood's `dims`. A transposed `[d, T]` tensor is rejected
+with a hint rather than read as `d` observations.
 
 ```python
 from bayesian_changepoint_detection import MultivariateT

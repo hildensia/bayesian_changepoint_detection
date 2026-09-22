@@ -517,7 +517,8 @@ class MultivariateT(_CumsumLikelihood):
     Parameters
     ----------
     dims : int, optional
-        Number of dimensions. If None, inferred from data.
+        Number of dimensions. If None, taken from the data on every call;
+        if given, data with a different dimension raises ``ValueError``.
     dof0 : float, optional
         Prior degrees of freedom (default: dims + 1).
     kappa0 : float, optional
@@ -562,8 +563,14 @@ class MultivariateT(_CumsumLikelihood):
 
     def _resolved_params(self, data: torch.Tensor):
         d = data.shape[1]
-        if self.dims is None:
-            self.dims = d
+        # dims=None means "take it from the data", on every call: the model
+        # can be reused on series of different dimension. An explicit dims
+        # that disagrees with the data is an error, not silently overridden.
+        if self.dims is not None and d != self.dims:
+            raise ValueError(
+                f"MultivariateT(dims={self.dims}) got observations of "
+                f"dimension {d} (data shape {list(data.shape)})"
+            )
         dof0 = self.dof0 if self.dof0 is not None else d + 1
         if self.mu0 is None:
             mu0 = torch.zeros(d, dtype=data.dtype, device=data.device)
