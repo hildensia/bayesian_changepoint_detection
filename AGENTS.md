@@ -134,7 +134,12 @@ way rather than rely on the docstring.
 across O(n²) terms. Do not silently downcast. Before #50 the offline
 recursion ran in float32; with #50 it runs in float64 and, because MPS does
 not support float64, falls back to CPU there. Any new float64 path needs
-the same fallback.
+the same fallback. Offline prefix sums are taken on data minus its mean
+(`_CumsumLikelihood._shift`) and a model that needs the raw location adds
+the shift back as `mean + (shift - mu0)`; rank-one terms in determinants go
+through `_logdet_plus_rank_one`. `tests/test_offline_large_offsets.py`
+checks every offline likelihood against exact rational arithmetic at
+offsets up to 1e10; a new offline likelihood belongs there too.
 
 **Device handling.** Use `device.get_device()` and `device.ensure_tensor()`
 rather than calling `torch.device` or `.to()` ad hoc. A function that accepts
