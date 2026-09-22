@@ -108,8 +108,12 @@ mkdocs serve        # http://127.0.0.1:8000, rebuilds on save
 mkdocs build --strict   # what CI runs; warnings fail the build
 ```
 
-The site is built on every PR but not published yet: publishing on GitHub
-Pages needs the repository owner to enable Pages.
+CI builds the site on every PR. The published site, <https://estcarisimo.github.io/bayesian_changepoint_detection/>,
+is built from `master` and deployed by a workflow on the maintainer's fork
+(`estcarisimo/bayesian_changepoint_detection`, `.github/workflows/pages.yml`),
+daily and on demand, because enabling Pages on this repository needs its
+owner. A merged docs change is live within a day; to publish at once, run
+that workflow by hand.
 
 ## Conventions
 
