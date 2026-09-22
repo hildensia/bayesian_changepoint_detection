@@ -46,6 +46,15 @@ All notable changes to this project are documented here. The format follows
 
 ### Fixed
 
+- `to_tensor` / `ensure_tensor` keep float64 precision when no `dtype` is
+  given: float64 NumPy arrays, Python floats and float64 tensors stay
+  float64 (float32 on MPS); integer and boolean input still becomes
+  float32. Before, every non-tensor became float32, so a float64 NumPy
+  series far from zero was quantized (steps of 8 near 1e8) before the
+  detectors' float64 or centered arithmetic could help; offline and online
+  results for such input now equal those for the float64 tensor.
+  `to_tensor(t)` on a float64 tensor now returns float64 rather than
+  downcasting.
 - Online `StudentT`, `MultivariateT` and `NormalKnownVariance` keep their
   float32 state relative to the first observation. For data far from zero
   the state used to cancel: with unit noise at an offset of 1e6 the

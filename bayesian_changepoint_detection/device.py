@@ -49,6 +49,13 @@ def to_tensor(
     """
     Convert data to PyTorch tensor on specified device.
 
+    Without an explicit ``dtype``, floating-point input keeps its precision:
+    float64 NumPy arrays, Python floats and float64 tensors stay float64,
+    float32 stays float32. Integer and boolean input becomes float32. On
+    MPS, which has no float64, everything becomes float32. (Versions up to
+    1.1.0 made everything float32, so a float64 NumPy series far from zero
+    lost its low digits before any detector saw it.)
+
     Parameters
     ----------
     data : array-like
@@ -56,7 +63,7 @@ def to_tensor(
     device : str, torch.device, or None, optional
         Target device for the tensor.
     dtype : torch.dtype, optional
-        Desired data type for the tensor.
+        Desired data type for the tensor; overrides the rule above.
 
     Returns
     -------
@@ -66,19 +73,44 @@ def to_tensor(
     Examples
     --------
     >>> import numpy as np
-    >>> data = np.array([1, 2, 3])
-    >>> tensor = to_tensor(data)
-    >>> tensor = to_tensor(data, device='cuda', dtype=torch.float32)
+    >>> to_tensor(np.array([1, 2, 3]), device="cpu").dtype
+    torch.float32
+    >>> to_tensor(np.array([1.5, 2.5]), device="cpu").dtype
+    torch.float64
+    >>> tensor = to_tensor(np.array([1.5]), device='cuda', dtype=torch.float32)
     """
-    if dtype is None:
-        dtype = torch.float32
-
     device = get_device(device)
-
+    if dtype is None:
+        dtype = _default_float_dtype(data, device)
     if isinstance(data, torch.Tensor):
         return data.to(device=device, dtype=dtype)
-    else:
-        return torch.tensor(data, device=device, dtype=dtype)
+    return torch.as_tensor(data, dtype=dtype, device=device)
+
+
+def _default_float_dtype(data, device: torch.device) -> torch.dtype:
+    """float64 for float64 input off MPS, float32 otherwise.
+
+    Needs no NumPy import (the package depends only on torch): tensors and
+    NumPy arrays or scalars expose ``dtype``; Python floats are float64.
+    """
+    if device.type == "mps":
+        return torch.float32
+    source = getattr(data, "dtype", None)
+    if source is not None:
+        return (
+            torch.float64
+            if str(source) in ("float64", "torch.float64")
+            else torch.float32
+        )
+    return torch.float64 if _contains_float(data) else torch.float32
+
+
+def _contains_float(data) -> bool:
+    if isinstance(data, float):
+        return True
+    if isinstance(data, (list, tuple)):
+        return any(_contains_float(value) for value in data)
+    return False
 
 
 def ensure_tensor(

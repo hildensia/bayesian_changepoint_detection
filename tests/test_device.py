@@ -127,3 +127,47 @@ class TestGPUDevice:
         data = [1, 2, 3]
         tensor = to_tensor(data, device="mps")
         assert tensor.device.type == "mps"
+
+
+class TestDefaultDtype:
+    """Without ``dtype``, to_tensor keeps float64 precision (off MPS)."""
+
+    @pytest.mark.parametrize(
+        "data, expected",
+        [
+            (np.array([1.5, 2.5]), torch.float64),
+            (np.array([1.5], dtype=np.float32), torch.float32),
+            (np.array([1, 2]), torch.float32),
+            ([1.0, 2.0], torch.float64),
+            ([[1, 2.5], [3, 4]], torch.float64),
+            ([1, 2], torch.float32),
+            (1e8 + 0.5, torch.float64),
+            (3, torch.float32),
+            (np.float64(2.5), torch.float64),
+            (torch.tensor([1.0], dtype=torch.float64), torch.float64),
+            (torch.tensor([1.0], dtype=torch.float16), torch.float32),
+            (torch.tensor([1, 2]), torch.float32),
+            ([], torch.float32),
+        ],
+    )
+    def test_rules(self, data, expected):
+        assert to_tensor(data, device="cpu").dtype == expected
+
+    def test_explicit_dtype_wins(self):
+        tensor = to_tensor(np.array([1.5]), device="cpu", dtype=torch.float32)
+        assert tensor.dtype == torch.float32
+
+    def test_float64_numpy_keeps_its_low_digits(self):
+        # float32 cannot represent 1e8 + 0.25 (spacing 8 near 1e8).
+        value = 1e8 + 0.25
+        assert ensure_tensor(np.array([value]), device="cpu").item() == value
+        assert ensure_tensor([value], device="cpu").item() == value
+
+    @pytest.mark.gpu
+    @pytest.mark.skipif(
+        not (hasattr(torch.backends, "mps") and torch.backends.mps.is_available()),
+        reason="MPS not available",
+    )
+    def test_mps_gets_float32(self):
+        assert to_tensor(np.array([1.5]), device="mps").dtype == torch.float32
+        assert to_tensor([1.5], device="mps").dtype == torch.float32
