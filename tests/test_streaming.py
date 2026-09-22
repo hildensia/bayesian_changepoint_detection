@@ -4,7 +4,7 @@ Tests for ``OnlineChangepointDetector``, the incremental online detector.
 The ``math`` tests compare it with ``reference_mv_bocpd`` in
 ``tests/_reference_bocpd.py``, a NumPy/scipy implementation written from
 Adams & MacKay (2007) and Murphy (2007) that shares no code with the
-library, with and without the run-length bound. The ``behaviour`` tests pin
+library, with and without the run-length bound. The ``behavior`` tests pin
 its agreement with ``online_changepoint_detection`` (the same recursion
 through a second code path), the bound, and the input checks.
 """
@@ -82,7 +82,7 @@ def test_bounded_run_length_matches_the_truncated_reference(max_run_length):
         assert np.all(expected[keep:, t + 1] == 0.0)
 
 
-@pytest.mark.behaviour
+@pytest.mark.behavior
 @pytest.mark.parametrize("dims", [None, 3], ids=["univariate", "multivariate"])
 def test_agrees_with_the_batch_detector(dims):
     # Same recursion; the batch version normalizes over the zero-padded
@@ -108,7 +108,7 @@ def test_agrees_with_the_batch_detector(dims):
     )
 
 
-@pytest.mark.behaviour
+@pytest.mark.behavior
 def test_a_bound_above_the_stream_length_changes_nothing():
     data = mean_shift(3)
     exact = OnlineChangepointDetector(HAZARD, StudentT(device="cpu"))
@@ -119,7 +119,7 @@ def test_a_bound_above_the_stream_length_changes_nothing():
         assert torch.equal(exact.update(x), bounded.update(x))
 
 
-@pytest.mark.behaviour
+@pytest.mark.behavior
 def test_bounded_memory_on_a_long_stream():
     # 2 000 observations, bound 50: the posterior and every parameter vector
     # stay at 51 entries, and the change at 1 000 is still found.
@@ -145,7 +145,7 @@ def test_bounded_memory_on_a_long_stream():
     assert starts == {1000}
 
 
-@pytest.mark.behaviour
+@pytest.mark.behavior
 def test_rejected_observations_leave_the_state_alone():
     detector = OnlineChangepointDetector(HAZARD, StudentT(device="cpu"))
     for x in [0.1, -0.3, 0.2]:
@@ -159,7 +159,7 @@ def test_rejected_observations_leave_the_state_alone():
     assert torch.equal(detector.run_length_posterior, before)
 
 
-@pytest.mark.behaviour
+@pytest.mark.behavior
 def test_multivariate_observations_must_have_the_model_dimension():
     detector = OnlineChangepointDetector(HAZARD, MultivariateT(dims=3, device="cpu"))
     with pytest.raises(ValueError, match=r"shape \[3\]"):
@@ -170,7 +170,7 @@ def test_multivariate_observations_must_have_the_model_dimension():
     assert one_dim.t == 1
 
 
-@pytest.mark.behaviour
+@pytest.mark.behavior
 def test_changepoint_probability_range():
     detector = OnlineChangepointDetector(
         HAZARD, StudentT(device="cpu"), max_run_length=5
@@ -186,7 +186,7 @@ def test_changepoint_probability_range():
         detector.changepoint_probability(-1)
 
 
-@pytest.mark.behaviour
+@pytest.mark.behavior
 @pytest.mark.parametrize(
     "bound, error",
     [(0, ValueError), (-3, ValueError), (2.5, TypeError), (True, TypeError)],
@@ -206,7 +206,7 @@ class PdfOnlyLikelihood(BaseLikelihood):
         self.t += 1
 
 
-@pytest.mark.behaviour
+@pytest.mark.behavior
 def test_a_bound_needs_a_prunable_likelihood():
     with pytest.raises(ValueError, match="_run_length_state"):
         OnlineChangepointDetector(

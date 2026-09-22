@@ -39,7 +39,7 @@ class TestConstPrior:
         expected = torch.log(torch.tensor(0.2))
         assert torch.allclose(log_probs, expected.expand_as(log_probs))
 
-    @pytest.mark.behaviour
+    @pytest.mark.behavior
     def test_probability_validation(self):
         """Test probability parameter validation."""
         # Valid probabilities
@@ -95,7 +95,7 @@ class TestGeometricPrior:
         out = geometric_prior(torch.tensor([0, 1, 2]), p=0.1, device="cpu")
         assert out[0] == float("-inf") and torch.isfinite(out[1:]).all()
 
-    @pytest.mark.behaviour
+    @pytest.mark.behavior
     def test_probability_validation_geometric(self):
         with pytest.raises(ValueError):
             geometric_prior(1, p=0.0)
@@ -153,12 +153,12 @@ class TestNegativeBinomialPrior:
         assert negative_binomial_prior(2, k=2, p=1.0) == 0.0
         assert negative_binomial_prior(3, k=2, p=1.0) == float("-inf")
 
-    @pytest.mark.behaviour
+    @pytest.mark.behavior
     def test_output_device_and_dtype(self):
         out = negative_binomial_prior(torch.arange(1, 5), k=2, p=0.3, device="cpu")
         assert out.device.type == "cpu" and out.dtype == torch.float32
 
-    @pytest.mark.behaviour
+    @pytest.mark.behavior
     def test_parameter_validation_nb(self):
         negative_binomial_prior(5, k=1, p=0.1)
         negative_binomial_prior(5, k=3, p=0.9)
@@ -172,7 +172,7 @@ class TestNegativeBinomialPrior:
             negative_binomial_prior(5, k=1, p=1.1)
 
 
-@pytest.mark.behaviour
+@pytest.mark.behavior
 class TestPriorDeviceHandling:
     """Test device handling for priors."""
 

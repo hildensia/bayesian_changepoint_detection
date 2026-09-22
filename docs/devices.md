@@ -169,6 +169,6 @@ A 10 000-point series needs 0.4 GB for `R` and 1.6 GB for the offline tables;
 at 50 000 points the online detector alone needs 10 GB. There is no built-in
 chunking: splitting a series and running the detector on each piece changes
 the model (the prior restarts at every chunk boundary), so it is not a
-transparent memory optimisation. For long streams the incremental API
+transparent memory optimization. For long streams the incremental API
 tracked in [issue #13](https://github.com/hildensia/bayesian_changepoint_detection/issues/13)
 is the right fix.

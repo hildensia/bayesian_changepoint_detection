@@ -26,7 +26,7 @@ from bayesian_changepoint_detection import (
     viterbi_changepoints,
 )
 
-pytestmark = pytest.mark.behaviour
+pytestmark = pytest.mark.behavior
 
 HAZARD = partial(constant_hazard, 50, device="cpu")
 PRIOR = partial(const_prior, p=1 / 100)

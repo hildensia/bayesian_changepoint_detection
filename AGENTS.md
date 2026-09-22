@@ -20,6 +20,17 @@ A PyTorch implementation of two Bayesian changepoint detection algorithms:
 It is a small research library. Prefer clarity and numerical correctness over
 cleverness, and keep the public API stable.
 
+## Language
+
+Write this file, all other agent instructions, every identifier
+(function, method, class, argument, test marker) and docstrings in American
+English:
+`initialize`, `normalize`, `behavior`, `color`, `neighbor`, `modeling`.
+The rule is mandatory. Renaming a public identifier to comply needs a
+deprecation path (keep the old name as an alias that warns, note it in
+`CHANGELOG.md`); an audit on 2026-09-22 found no public name that needed
+it, and renamed the test marker `behaviour` to `behavior`.
+
 ## Setup and tests
 
 ```bash
@@ -34,7 +45,7 @@ Tests must pass without a GPU.
 Every test is marked `math` (checked against an independent computation
 of the same quantity: scipy, an exhaustive enumeration, a closed form from
 a paper, a derivation sharing no code with the one under test) or
-`behaviour` (pins current behaviour: contracts, edge cases, devices, one
+`behavior` (pins current behavior: contracts, edge cases, devices, one
 formula through two code paths, synthetic-data detection, goldens from an
 earlier version); `tests/conftest.py` rejects a test with neither or both. `pytest -m math`
 runs only the proofs, which is the set to watch when changing the

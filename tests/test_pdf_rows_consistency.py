@@ -17,7 +17,7 @@ from bayesian_changepoint_detection.offline_likelihoods import (
     StudentT,
 )
 
-pytestmark = pytest.mark.behaviour
+pytestmark = pytest.mark.behavior
 
 
 @pytest.fixture

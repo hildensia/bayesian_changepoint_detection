@@ -12,7 +12,7 @@ from pathlib import Path
 
 import pytest
 
-pytestmark = pytest.mark.behaviour
+pytestmark = pytest.mark.behavior
 
 ROOT = Path(__file__).resolve().parent.parent
 DOCS = [ROOT / "README.md", *sorted((ROOT / "docs").glob("*.md"))]

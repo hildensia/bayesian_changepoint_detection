@@ -7,7 +7,7 @@ import torch
 
 from bayesian_changepoint_detection.online_likelihoods import MultivariateT, StudentT
 
-pytestmark = pytest.mark.behaviour
+pytestmark = pytest.mark.behavior
 
 
 class TestStudentT:

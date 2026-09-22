@@ -3,7 +3,7 @@ Collection-time check: every test says what kind of evidence it is.
 
 ``AGENTS.md`` ("Changing the math") and ``CONTRIBUTING.md`` distinguish tests
 that verify the mathematics against an independent reference from tests that
-pin the library's current behaviour. The two markers make that distinction
+pin the library's current behavior. The two markers make that distinction
 queryable (``pytest -m math`` runs only the proofs) and this hook keeps it
 complete: a test carrying neither marker, or both, fails collection.
 
@@ -15,7 +15,7 @@ always does, checks every test.
 
 import pytest
 
-KIND_MARKERS = ("math", "behaviour")
+KIND_MARKERS = ("math", "behavior")
 
 
 @pytest.hookimpl(trylast=True)
@@ -32,12 +32,12 @@ def pytest_collection_modifyitems(config, items):
     if untagged:
         problems.append(
             "tests without a kind marker (add @pytest.mark.math or "
-            "@pytest.mark.behaviour, or a module-level pytestmark):\n  "
+            "@pytest.mark.behavior, or a module-level pytestmark):\n  "
             + "\n  ".join(untagged)
         )
     if double:
         problems.append(
-            "tests marked both math and behaviour (pick one):\n  " + "\n  ".join(double)
+            "tests marked both math and behavior (pick one):\n  " + "\n  ".join(double)
         )
     if problems:
         raise pytest.UsageError("\n".join(problems))

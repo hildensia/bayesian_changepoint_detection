@@ -13,7 +13,7 @@ import torch
 
 from bayesian_changepoint_detection.hazard_functions import constant_hazard
 
-pytestmark = pytest.mark.behaviour
+pytestmark = pytest.mark.behavior
 
 
 def test_int_r_gives_a_vector_of_that_length():
