@@ -8,6 +8,14 @@ All notable changes to this project are documented here. The format follows
 
 ### Added
 
+- `OnlineChangepointDetector`, the online detector one observation at a
+  time for streams of unknown length (issue #13): `update(x)`,
+  `run_length_posterior`, `map_run_length`, `changepoint_probability(lag)`.
+  `max_run_length` bounds memory and time per observation by dropping run
+  lengths above the bound and renormalizing. Checked against the NumPy
+  reference with and without the bound, and against
+  `online_changepoint_detection`. Online likelihoods gain `prune(n)`, driven
+  by a `_run_length_state` class attribute.
 - Documentation site built with MkDocs (Material theme, API reference
   generated from the docstrings by mkdocstrings), checked with
   `mkdocs build --strict` in CI. Its pages include sections of the README,

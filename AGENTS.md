@@ -57,6 +57,7 @@ Two things that surprise people:
 | Path | Contents |
 | --- | --- |
 | `bayesian_changepoint_detection/bayesian_models.py` | Both detection algorithms |
+| `bayesian_changepoint_detection/streaming.py` | `OnlineChangepointDetector`, the online recursion one observation at a time |
 | `bayesian_changepoint_detection/offline_likelihoods.py` | Segment likelihoods for the offline algorithm |
 | `bayesian_changepoint_detection/online_likelihoods.py` | Predictive likelihoods for the online algorithm |
 | `bayesian_changepoint_detection/priors.py` | Segment-length priors (offline) |
@@ -97,7 +98,10 @@ is removed in the next release (see the Unreleased section of `CHANGELOG.md`).
 **Online likelihood objects are stateful and single-use.** `update_theta`
 grows the parameter vectors by one entry per timestep and `pdf` increments an
 internal counter. Re-instantiate the model before a second run; do not reuse
-one across two calls to `online_changepoint_detection`.
+one across two calls to `online_changepoint_detection`. A likelihood that
+lists its per-run-length tensors in `_run_length_state` can be pruned
+(`prune(n)`), which `OnlineChangepointDetector(max_run_length=...)` needs;
+a new online likelihood should declare it.
 
 **Log space vs. probability space differs by algorithm.** Priors return log
 probabilities and both likelihood families return log densities. The
