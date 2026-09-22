@@ -80,7 +80,8 @@ def segment_statistics(
     Raises
     ------
     ValueError
-        If ``data`` is not ``[T]`` or ``[T, D]`` or has NaN or Inf, or a
+        If ``data`` is not ``[T]`` or ``[T, D]``, is complex, or has NaN or
+        Inf, or a
         start is outside ``[0, T)`` or repeated.
 
     Examples
@@ -94,6 +95,8 @@ def segment_statistics(
         raise ValueError(
             f"data must have shape [T] or [T, D] with T >= 1, got {list(data.shape)}"
         )
+    if data.is_complex():
+        raise ValueError(f"data must be real, got dtype {data.dtype}")
     if not bool(torch.isfinite(data).all()):
         raise ValueError("data contains NaN or Inf; remove or impute them first")
     T = data.shape[0]
