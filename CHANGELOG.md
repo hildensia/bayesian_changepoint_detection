@@ -91,8 +91,8 @@ All notable changes to this project are documented here. The format follows
   No PyPI token or password is stored in the repository; the 2022
   username/password secrets are no longer used. A manual run of the workflow
   can upload to TestPyPI instead.
-- README rewritten: what the library computes, a working install (with the
-  GitHub route while PyPI still serves 0.4), online/offline/multivariate
+- README rewritten: what the library computes, a working install,
+  online/offline/multivariate
   examples whose printed outputs are the real ones and which run in the test
   suite, how to read `R`, an API table, the package layout, development
   commands, captured example output, measured performance only, the FAQ,

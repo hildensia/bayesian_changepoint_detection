@@ -55,7 +55,7 @@ jobs:
             exit 1
           fi
 
-      - uses: actions/upload-artifact@v5
+      - uses: actions/upload-artifact@v7
         with:
           name: distributions
           path: dist/
@@ -69,7 +69,7 @@ jobs:
     permissions:
       id-token: write # required for Trusted Publishing
     steps:
-      - uses: actions/download-artifact@v6
+      - uses: actions/download-artifact@v8
         with:
           name: distributions
           path: dist/
@@ -87,7 +87,7 @@ jobs:
     permissions:
       id-token: write # required for Trusted Publishing
     steps:
-      - uses: actions/download-artifact@v6
+      - uses: actions/download-artifact@v8
         with:
           name: distributions
           path: dist/
@@ -103,7 +103,7 @@ jobs:
     permissions:
       contents: write # required to upload release assets
     steps:
-      - uses: actions/download-artifact@v6
+      - uses: actions/download-artifact@v8
         with:
           name: distributions
           path: dist/
