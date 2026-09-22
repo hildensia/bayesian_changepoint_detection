@@ -4,7 +4,7 @@ Thanks for your interest in this library. This guide covers the development
 setup, the checks every change must pass, and how a change gets from your
 machine into `master`. Repository conventions that are easy to get wrong
 (two `StudentT` classes, probability vs. log space, single-use online
-likelihood objects, device handling) are in [`AGENTS.md`](AGENTS.md); read
+likelihood objects, device handling) are in [`AGENTS.md`](https://github.com/hildensia/bayesian_changepoint_detection/blob/master/AGENTS.md); read
 it before touching the algorithms.
 
 ## Development setup
@@ -77,7 +77,8 @@ the marker and only skips at runtime.
 
 CI runs `pytest tests/` on Python 3.9 to 3.13 with CPU-only PyTorch, a
 `lint` job (`ruff check` and `ruff format --check`), an `examples` job that
-runs every script in `examples/` headless, and a `build` job that
+runs every script in `examples/` headless, a `docs` job that builds the
+documentation site with `mkdocs build --strict`, and a `build` job that
 makes the sdist and wheel, runs `twine check`, and installs the wheel into a
 clean environment to run both detectors once. Run the linter and formatter
 locally before pushing, or let the pre-commit hooks do it on each commit:
@@ -90,6 +91,24 @@ ruff check . && ruff format .           # what CI checks (ruff is in the dev ext
 Configuration lives in `pyproject.toml` under `[tool.ruff]`: rule sets
 `E, F, W, I, B, UP`, line length 88, Python 3.9 as the target, notebooks
 excluded. mypy settings are kept there too but mypy is not enforced yet.
+
+### Documentation site
+
+`mkdocs.yml` describes the site; the pages are in `docs/`. Most of them pull
+sections of `README.md` in through snippet section markers, HTML comments
+in the README that open and close a named section (`start:usage`,
+`end:usage`; a comment is invisible on GitHub and PyPI). Edit the README,
+not the page, and keep the markers when you move text around.
+The API pages are generated from the docstrings. To preview:
+
+```bash
+pip install -e ".[docs]"
+mkdocs serve        # http://127.0.0.1:8000, rebuilds on save
+mkdocs build --strict   # what CI runs; warnings fail the build
+```
+
+The site is built on every PR but not published yet: publishing on GitHub
+Pages needs the repository owner to enable Pages.
 
 ## Conventions
 

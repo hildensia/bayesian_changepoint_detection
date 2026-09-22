@@ -57,10 +57,12 @@ plot = [
     "matplotlib>=3.5.0",
     "seaborn>=0.11.0",
 ]
+# The documentation site (mkdocs.yml). MkDocs 2.0 drops the plugin system
+# that Material and mkdocstrings rely on, so stay on 1.x.
 docs = [
-    "sphinx>=5.0.0",
-    "sphinx-rtd-theme>=1.2.0",
-    "numpydoc>=1.5.0",
+    "mkdocs>=1.6,<2",
+    "mkdocs-material>=9.5",
+    "mkdocstrings[python]>=0.26",
 ]
 gpu = [
     "torch[cuda]>=2.0.0",

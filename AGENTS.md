@@ -65,6 +65,7 @@ Two things that surprise people:
 | `bayesian_changepoint_detection/generate_data.py` | Synthetic series for tests and examples |
 | `tests/` | Test suite |
 | `examples/` | Runnable scripts and notebooks |
+| `docs/`, `mkdocs.yml` | Documentation site; most pages include `README.md` sections through `<!-- --8<-- [start:name] -->` markers, so keep those markers intact |
 
 ## Things that are easy to get wrong
 
