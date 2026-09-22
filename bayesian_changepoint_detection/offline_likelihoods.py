@@ -662,3 +662,116 @@ class MultivariateT(_CumsumLikelihood):
         lengths, sum_x, _ = self._segment_moments(t, s)
         sum_outer = self._C[s : s + 1] - self._C[t]
         return self._log_marginal(data, lengths[-1:], sum_x[-1:], sum_outer).item()
+
+
+def _check_counts(data: torch.Tensor) -> None:
+    """Raise unless every entry is a non-negative integer (a count)."""
+    if bool((data < 0).any()) or bool((data != torch.round(data)).any()):
+        raise ValueError("Poisson likelihood needs non-negative integer counts")
+
+
+class Poisson(_CumsumLikelihood):
+    """
+    Poisson (Gamma-Poisson) marginal likelihood for offline detection of
+    changes in the rate of count data.
+
+    Each segment's counts are i.i.d. Poisson with an unknown rate ``lambda``
+    under a conjugate ``Gamma(alpha0, beta0)`` prior (shape, rate). The
+    marginal likelihood of a segment of ``n`` counts with sum ``S`` is, in
+    closed form (Gelman et al., *Bayesian Data Analysis*, 3rd ed., section
+    2.6, Poisson model with gamma prior):
+
+    ``log p = lgamma(alpha0 + S) - lgamma(alpha0) + alpha0 log(beta0)
+    - (alpha0 + S) log(beta0 + n) - sum_i lgamma(x_i + 1)``.
+
+    Multivariate input is treated as independent Poisson dimensions, as
+    ``StudentT`` does, and their log marginals are summed.
+
+    Parameters
+    ----------
+    device : str, torch.device, or None, optional
+        Device to place tensors on.
+    cache_enabled : bool, optional
+        Retained for backward compatibility (see ``BaseLikelihood``).
+    alpha0 : float, optional
+        Shape of the Gamma prior on the rate (default 1.0).
+    beta0 : float, optional
+        Rate of the Gamma prior on the rate (default 1.0). The prior mean
+        rate is ``alpha0 / beta0``; a small ``beta0`` makes the prior vague.
+
+    Raises
+    ------
+    ValueError
+        If the data contain negative or non-integer values.
+
+    Examples
+    --------
+    >>> import torch
+    >>> likelihood = Poisson(alpha0=1.0, beta0=0.1)
+    >>> counts = torch.poisson(torch.full((100,), 4.0))
+    >>> log_marginal = likelihood.pdf(counts, 10, 50)
+    """
+
+    def __init__(
+        self,
+        device: Optional[Union[str, torch.device]] = None,
+        cache_enabled: bool = True,
+        *,
+        alpha0: float = 1.0,
+        beta0: float = 1.0,
+    ):
+        if not (alpha0 > 0 and beta0 > 0):
+            raise ValueError(
+                f"alpha0 and beta0 must be positive, got {alpha0} and {beta0}"
+            )
+        super().__init__(device, cache_enabled)
+        self.alpha0 = alpha0
+        self.beta0 = beta0
+
+    def _compute_stats(self, data: torch.Tensor) -> None:
+        _check_counts(data)
+        super()._compute_stats(data)
+        zero = torch.zeros(1, data.shape[1], dtype=data.dtype, device=data.device)
+        # L[k] = sum of lgamma(x + 1) = log(x!) over data[:k]
+        self._L = torch.cat([zero, torch.cumsum(torch.lgamma(data + 1), dim=0)])
+
+    def _log_marginal(self, t: int, s_hi: int) -> torch.Tensor:
+        lengths, sum_x, _ = self._segment_moments(t, s_hi)
+        log_factorials = self._L[t + 1 : s_hi + 1] - self._L[t]
+        alpha_n = self.alpha0 + sum_x  # [m, d]
+        beta_n = self.beta0 + lengths.unsqueeze(-1)  # [m, 1]
+        log_marginal = (
+            torch.lgamma(alpha_n)
+            - math.lgamma(self.alpha0)
+            + self.alpha0 * math.log(self.beta0)
+            - alpha_n * torch.log(beta_n)
+            - log_factorials
+        )
+        return log_marginal.sum(dim=-1)
+
+    def pdf_rows(self, data: torch.Tensor, t: int) -> torch.Tensor:
+        data = self.setup(data)
+        return self._log_marginal(t, data.shape[0])
+
+    def pdf(self, data: torch.Tensor, t: int, s: int) -> float:
+        """
+        Log marginal likelihood of the counts ``data[t:s]``.
+
+        Parameters
+        ----------
+        data : torch.Tensor
+            Complete series of counts.
+        t : int
+            Start index (inclusive).
+        s : int
+            End index (exclusive).
+
+        Returns
+        -------
+        float
+            Log marginal likelihood of the segment.
+        """
+        if s <= t:
+            return 0.0
+        data = self.setup(data)
+        return self._log_marginal(t, s)[-1].item()

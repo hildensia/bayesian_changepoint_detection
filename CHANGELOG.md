@@ -8,6 +8,12 @@ All notable changes to this project are documented here. The format follows
 
 ### Added
 
+- `online_likelihoods.Poisson` and `offline_likelihoods.Poisson` for count
+  data (issue #23): Poisson counts with a conjugate Gamma prior on the rate,
+  negative-binomial predictive online, closed-form segment marginal offline
+  (Gelman et al., BDA3, section 2.6). Checked against `scipy.stats.nbinom`
+  and against the chain-rule product of predictives. The online class
+  supports `max_run_length` in `OnlineChangepointDetector`.
 - `OnlineChangepointDetector`, the online detector one observation at a
   time for streams of unknown length (issue #13): `update(x)`,
   `run_length_posterior`, `map_run_length`, `changepoint_probability(lag)`.
