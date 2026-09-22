@@ -156,9 +156,11 @@ repository owner.
    tag, uploads to PyPI with Trusted Publishing (OpenID Connect, no stored
    token or password), and attaches both files to the GitHub release. The
    distribution is `bayesian-changepoint`; its PyPI publisher is configured
-   for this repository and the `cd.yml` workflow with no environment. A new
-   distribution name needs a matching publisher on PyPI before the first
-   upload.
+   for this repository and the `cd.yml` workflow with the environment left
+   blank. The upload job runs in the `pypi` GitHub environment (`testpypi` for
+   rehearsals) so that the upload shows up under "Deployments" on the
+   repository page. A new distribution name needs a matching publisher on PyPI
+   before the first upload.
 
 ## Reporting issues
 
