@@ -54,7 +54,8 @@ All notable changes to this project are documented here. The format follows
   detectors' float64 or centered arithmetic could help; offline and online
   results for such input now equal those for the float64 tensor.
   `to_tensor(t)` on a float64 tensor now returns float64 rather than
-  downcasting.
+  downcasting. Complex input keeps a complex dtype, so the detectors reject
+  it ("data must be real") instead of silently dropping the imaginary part.
 - Online `StudentT`, `MultivariateT` and `NormalKnownVariance` keep their
   float32 state relative to the first observation. For data far from zero
   the state used to cancel: with unit noise at an offset of 1e6 the

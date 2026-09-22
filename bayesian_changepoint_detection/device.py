@@ -51,8 +51,10 @@ def to_tensor(
 
     Without an explicit ``dtype``, floating-point input keeps its precision:
     float64 NumPy arrays, Python floats and float64 tensors stay float64,
-    float32 stays float32. Integer and boolean input becomes float32. On
-    MPS, which has no float64, everything becomes float32. (Versions up to
+    float32 stays float32. Integer and boolean input becomes float32, and
+    complex input stays complex (so detectors can reject it). On MPS, which
+    has no float64, real input becomes float32. The result is always a new
+    tensor, never a view of the caller's array. (Versions up to
     1.1.0 made everything float32, so a float64 NumPy series far from zero
     lost its low digits before any detector saw it.)
 
@@ -84,24 +86,26 @@ def to_tensor(
         dtype = _default_float_dtype(data, device)
     if isinstance(data, torch.Tensor):
         return data.to(device=device, dtype=dtype)
-    return torch.as_tensor(data, dtype=dtype, device=device)
+    # torch.tensor copies: the result never aliases the caller's array.
+    return torch.tensor(data, dtype=dtype, device=device)
 
 
 def _default_float_dtype(data, device: torch.device) -> torch.dtype:
-    """float64 for float64 input off MPS, float32 otherwise.
+    """float64 for float64 input off MPS, float32 otherwise; complex input
+    stays complex so that the detectors' "data must be real" check sees it
+    (casting it to a real dtype would silently drop the imaginary part).
 
     Needs no NumPy import (the package depends only on torch): tensors and
     NumPy arrays or scalars expose ``dtype``; Python floats are float64.
     """
+    source = getattr(data, "dtype", None)
+    name = str(source).replace("torch.", "") if source is not None else ""
+    if name.startswith("complex"):
+        return torch.complex64 if device.type == "mps" else torch.complex128
     if device.type == "mps":
         return torch.float32
-    source = getattr(data, "dtype", None)
     if source is not None:
-        return (
-            torch.float64
-            if str(source) in ("float64", "torch.float64")
-            else torch.float32
-        )
+        return torch.float64 if name == "float64" else torch.float32
     return torch.float64 if _contains_float(data) else torch.float32
 
 
