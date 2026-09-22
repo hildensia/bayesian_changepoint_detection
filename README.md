@@ -160,6 +160,24 @@ print(starts)  # [50, 100]
 Without `max_run_length` each posterior equals the corresponding column of
 `R` from `online_changepoint_detection` (up to float32 rounding).
 
+### Direction and size of each change
+
+`segment_statistics` summarizes the segments between changepoints: mean,
+standard deviation, and for every changepoint the change in mean and a
+Welch z-score (issue #42).
+
+```python
+from bayesian_changepoint_detection import segment_statistics
+
+stats = segment_statistics(data, get_map_changepoints(R, min_separation=10))
+print(stats.means.tolist())         # about [0.096, 3.173, -0.165]
+print(stats.mean_changes.tolist())  # about [3.078, -3.339]: up, then down
+```
+
+The z-score ignores that the changepoints were found in the same data, so
+it overstates significance; treat it as a rough guide. Offline positions
+are the last index of the old segment: pass `positions + 1`.
+
 ### Offline detection
 
 The offline detector sees the whole series and returns, for every position,
@@ -226,6 +244,7 @@ and how much memory the tables need: [docs/devices.md](https://github.com/hilden
 | `get_map_changepoints(R, min_separation=1)` | indices where the MAP run-length path starts a new segment |
 | `viterbi_changepoints(data, hazard, likelihood)` | the single most probable run-length path and its segment starts |
 | `compute_run_length_posterior(data, hazard, likelihood)` | just `R`, for code that only wants the posterior |
+| `segment_statistics(data, starts)` | per-segment mean and std, change in mean and z-score at each changepoint |
 | `OnlineChangepointDetector(hazard, likelihood, max_run_length=None)` | streaming detector: `update(x)`, `run_length_posterior`, `map_run_length`, `changepoint_probability(lag)` |
 | `offline_changepoint_detection(data, prior, likelihood)` | `Q` (log evidence), `P` (segment log likelihoods), `Pcp` (log probability of the j-th changepoint at t) |
 | `constant_hazard(lam, r)` | hazard `1 / lam` for every run length |
@@ -248,6 +267,7 @@ bayesian_changepoint_detection/
 ├── __init__.py             # Public API and __version__ (from package metadata)
 ├── bayesian_models.py      # The two detectors, viterbi_changepoints, and the R helpers
 ├── streaming.py            # OnlineChangepointDetector: the online recursion one observation at a time
+├── segments.py             # segment_statistics: mean, spread and direction of each change
 ├── online_likelihoods.py   # Online StudentT and MultivariateT: per-run-length predictive densities
 ├── offline_likelihoods.py  # Offline StudentT, MultivariateT, IndependentFeatures, FullCovariance: segment marginals
 ├── priors.py               # const_prior, geometric_prior, negative_binomial_prior (segment-length priors)
