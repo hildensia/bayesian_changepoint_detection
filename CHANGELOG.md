@@ -8,6 +8,16 @@ All notable changes to this project are documented here. The format follows
 
 ### Added
 
+- `benchmarks/performance.py`: reproducible timings of the offline, online
+  and streaming detectors against the released versions 0.4 (NumPy), 1.0.0
+  and 1.1.0 on the same series and parameters, each case in a fresh process,
+  with every run scored against the true changepoints. Protocol in
+  `benchmarks/README.md`; the README's performance table comes from
+  `benchmarks/results/2026-09-22-apple-m1-cpu.json`. It showed that 1.0.0's
+  multivariate online detector misses almost every change (F1 0.04), that
+  0.4's crashes, and that the offline changepoint table is O(T³). CI runs
+  the quick suite on the current code so the harness cannot rot.
+
 - `negative_binomial_hazard(k, p, r)` (issue #23): the hazard of negative
   binomial segment lengths, `P(length = r + 1) / P(length >= r + 1)`, the
   online counterpart of `negative_binomial_prior` so both detectors can

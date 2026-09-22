@@ -1,0 +1,93 @@
+# Benchmarks
+
+Reproducible timings of the detectors, across released versions, on the same
+data and parameters. Only measured numbers are published; each result file
+records the hardware, software versions and commits it came from.
+
+## Running
+
+From the repository root, in an environment with the package's dev extra:
+
+```bash
+python benchmarks/performance.py                     # full suite: current checkout, v1.1.0, v1.0.0, v0.4
+python benchmarks/performance.py --versions current  # this checkout only
+python benchmarks/performance.py --suite quick       # a minute; what CI runs (current only)
+python benchmarks/performance.py --output benchmarks/results/<date>-<machine>-<device>.json
+python benchmarks/performance.py --report benchmarks/results/<file>.json  # tables of a saved run
+```
+
+Options: `--device cpu|mps|cuda` (the PyTorch versions), `--repeats N`
+(default 5), `--budget SECONDS` (default 300 per case), `--threads N` (torch
+intra-op threads). The `v0.4` baseline is the NumPy implementation and also
+needs `scipy` and `decorator` (`pip install decorator`). Older versions are
+exported with `git archive <tag>`, so the tags must be present (a shallow
+clone has none; `git fetch --tags`).
+
+## Protocol
+
+- **Isolation.** Every (version, workload, size) case runs in a fresh Python
+  process whose `PYTHONPATH` points at that version; the worker records the
+  module file it imported and the driver rejects the case if it is not the
+  intended copy.
+- **Data.** `workloads.make_data`: four equal segments with means 0, 2, -1,
+  1.5 and unit Gaussian noise, float64, fixed seed. In 5-D each mean is that
+  scalar times a fixed unit direction. The true changepoints are the three
+  segment starts.
+- **Parameters, the same for every version.** Offline: `StudentT` (or
+  `MultivariateT(dims=5)`) with its defaults, `const_prior(p = 1 / (n + 1))`,
+  each version's default `truncate` (-40 up to 1.1.0, exact since). Online:
+  `StudentT(alpha=0.1, beta=0.1, kappa=1, mu=0)` (or `MultivariateT(dims=5)`),
+  `constant_hazard(n / 4)`. Streaming: `OnlineChangepointDetector` with
+  `max_run_length=500`.
+- **Input dtype.** float64, except float32 for 1.0.0, which fails on float64
+  input to its multivariate online likelihood.
+- **Timing.** One warm-up call on a 40-point series (imports, allocator,
+  kernel compilation), then up to `--repeats` timed calls of the detector on
+  the benchmark series, each preceded by another untimed warm-up call (which
+  also resets 0.4's per-series likelihood cache). Stops early once the timed
+  calls exceed the budget, and skips a size whose predicted single-call time
+  (quadratic extrapolation from the previous size) exceeds it. Reported: the
+  median, with min, max and the number of calls in the JSON. Accelerators are
+  synchronized before the clock is read. Data preparation is outside the
+  timed region; moving the data to the device is inside it.
+- **Memory.** Increase of the process's peak resident set size over its value
+  after the warm-up (`ru_maxrss`), in the JSON. It includes allocator slack
+  and is only a coarse guide.
+- **Detection quality.** Every timed call is scored against the true
+  changepoints: F1 with a margin of 5 observations (each true change matched
+  at most once), the measure of van den Burg and Williams (2020). Offline
+  detections are the peaks of runs where the marginal changepoint probability
+  exceeds 0.5; online detections are forward moves of the start implied by
+  the MAP run length, at least 5 observations apart. The same code scores
+  every version. This is a sanity check on a synthetic series, not a quality
+  benchmark; see "Reference datasets" below.
+
+## Caveats
+
+- The offline `StudentT` likelihood of 0.4 and 1.0.0 scored each point under
+  the posterior of the whole segment (an approximation); from 1.1.0 it is
+  the exact marginal likelihood. Timings compare what each version computes
+  by default, not identical arithmetic.
+- 1.0.0's online detector crashes on a machine with MPS even with
+  `device="cpu"`; the worker hides MPS for 1.0.0 so its CPU path can be timed,
+  and the report says so. 0.4's multivariate online likelihood fails with a
+  `NameError` (it uses `islice` without importing it) and is reported as an
+  error.
+- Timings depend on the machine, its load, the torch build and thread count.
+  Compare numbers only within one result file.
+
+## Results
+
+Result files live in [`results/`](results/). The tables in the project
+README come from the file named there.
+
+## Reference datasets
+
+Detection quality on real data with human annotations (the Turing Change
+Point Dataset, van den Burg and Williams, 2020, MIT license, five annotators
+per series, F1 and covering metrics) is the planned next step. It will live
+next to this suite and keep the same rule: only measured numbers are
+published.
+
+van den Burg, G. J. J., and Williams, C. K. I. (2020). An evaluation of
+change point detection algorithms. arXiv:2003.06222.
