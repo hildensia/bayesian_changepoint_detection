@@ -143,19 +143,22 @@ repository owner.
 2. Move the `[Unreleased]` section of `CHANGELOG.md` under a new
    `[X.Y.Z] — YYYY-MM-DD` heading.
 3. Open a PR with those two changes and merge it.
-4. Tag and create the GitHub release **on the upstream repository**, not on
-   a fork: the workflow file is in every clone, but the PyPI secrets it
-   needs are configured only on the upstream repository:
+4. Optionally rehearse: run the `CD` workflow manually
+   (`gh workflow run cd.yml -f target=testpypi`) to build and upload to
+   TestPyPI, and install the result in a clean environment.
+5. Tag and create the GitHub release **on the upstream repository**, not on a
+   fork: the workflow file is in every clone, but the PyPI publisher is bound
+   to `hildensia/bayesian_changepoint_detection`:
    `git tag vX.Y.Z && git push <upstream-remote> vX.Y.Z`, then
    `gh release create vX.Y.Z --repo hildensia/bayesian_changepoint_detection --generate-notes`.
-5. The `CD` workflow (`.github/workflows/cd.yml`) builds the distribution,
-   runs `twine check`, and uploads to PyPI on the release event. Its upload
-   step still uses username/password secrets from 2022; PyPI uploads now
-   require an API token or trusted publishing, so publishing the `bayescd`
-   distribution needs one of those configured by the project owner. Until that
-   is done, expect the upload step to fail; users install from a clone of
-   the repository instead (README, "Or install from source" under
-   "Method 2: Using pip with Virtual Environments").
+6. The `CD` workflow builds the sdist and wheel, runs `twine check --strict`,
+   refuses to continue if the version in `pyproject.toml` does not match the
+   tag, uploads to PyPI with Trusted Publishing (OpenID Connect, no stored
+   token or password), and attaches both files to the GitHub release. The
+   distribution is `bayesian-changepoint`; its PyPI publisher is configured
+   for this repository and the `cd.yml` workflow with no environment. A new
+   distribution name needs a matching publisher on PyPI before the first
+   upload.
 
 ## Reporting issues
 

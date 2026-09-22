@@ -1,43 +1,117 @@
-# Uploads a Python package to PyPI when a release is created.
-# For more information see:
-# https://packaging.python.org/en/latest/guides/publishing-package-distribution-releases-using-github-actions-ci-cd-workflows/
+# Publishes the distribution to PyPI when a GitHub release is created, and to
+# TestPyPI on demand.
+#
+# Uploads use PyPI's Trusted Publishing (OpenID Connect): the job proves it is
+# this workflow in this repository and receives a short-lived token, so no API
+# token or password is stored in the repository. The PyPI and TestPyPI projects
+# each need a publisher configured for owner `hildensia`, repository
+# `bayesian_changepoint_detection`, workflow `cd.yml`, no environment.
+#
+# https://docs.pypi.org/trusted-publishers/
 
 name: CD
 
 on:
   release:
     types: [created]
+  workflow_dispatch:
+    inputs:
+      target:
+        description: "Where to upload the built distribution"
+        required: true
+        default: testpypi
+        type: choice
+        options: [testpypi, none]
+
+permissions: {}
 
 jobs:
-  deploy:
-
+  build:
+    name: Build sdist and wheel
     runs-on: ubuntu-latest
-
+    timeout-minutes: 15
     steps:
-    - uses: actions/checkout@v7
+      - uses: actions/checkout@v7
 
-    - name: Set up Python
-      uses: actions/setup-python@v7
-      with:
-        python-version: '3.12'
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
 
-    - name: Build distributions
-      run: |
-        python -m pip install --upgrade pip
-        pip install build twine
-        python -m build
-        twine check dist/*
+      - name: Build distributions
+        run: |
+          python -m pip install --upgrade pip build twine
+          python -m build
+          twine check --strict dist/*
 
-## Prod PyPI
-    - name: Publish
-      env:
-        TWINE_USERNAME: ${{ secrets.PYPI_USERNAME }}
-        TWINE_PASSWORD: ${{ secrets.PYPI_PROD_PASSWORD }}
-      run: twine upload dist/*
+      - name: Check the version against the tag
+        if: github.event_name == 'release'
+        run: |
+          # dist/bayesian_changepoint-<version>-py3-none-any.whl
+          wheel_version="$(ls dist/*.whl | sed -E 's/.*-([0-9][^-]*)-py3.*/\1/')"
+          tag_version="${GITHUB_REF_NAME#v}"
+          echo "wheel: $wheel_version, tag: $tag_version"
+          if [ "$wheel_version" != "$tag_version" ]; then
+            echo "::error::version in pyproject.toml ($wheel_version) does not match the tag ($tag_version)"
+            exit 1
+          fi
 
-## Test PyPI
-#    - name: Publish
-#      env:
-#        TWINE_USERNAME: ${{ secrets.PYPI_USERNAME }}
-#        TWINE_PASSWORD: ${{ secrets.PYPI_TEST_PASSWORD }}
-#      run: twine upload --repository testpypi dist/*
+      - uses: actions/upload-artifact@v7
+        with:
+          name: distributions
+          path: dist/
+
+  testpypi:
+    name: Publish to TestPyPI
+    needs: build
+    if: github.event_name == 'workflow_dispatch' && inputs.target == 'testpypi'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      id-token: write # required for Trusted Publishing
+    steps:
+      - uses: actions/download-artifact@v8
+        with:
+          name: distributions
+          path: dist/
+
+      - uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          repository-url: https://test.pypi.org/legacy/
+
+  pypi:
+    name: Publish to PyPI
+    needs: build
+    if: github.event_name == 'release'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      id-token: write # required for Trusted Publishing
+    steps:
+      - uses: actions/download-artifact@v8
+        with:
+          name: distributions
+          path: dist/
+
+      - uses: pypa/gh-action-pypi-publish@release/v1
+
+  attach:
+    # Runs after the upload, so a failure here means the release IS already on
+    # PyPI (uploads cannot be undone) and only the release assets are missing.
+    # Re-running this job alone is safe.
+    name: Attach the distribution to the release
+    needs: pypi
+    if: github.event_name == 'release'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: write # required to upload release assets
+    steps:
+      - uses: actions/download-artifact@v8
+        with:
+          name: distributions
+          path: dist/
+
+      - name: Upload the sdist and wheel as release assets
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release upload "$GITHUB_REF_NAME" dist/* --repo "$GITHUB_REPOSITORY"

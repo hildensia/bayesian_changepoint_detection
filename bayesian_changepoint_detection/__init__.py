@@ -10,10 +10,15 @@ from importlib.metadata import PackageNotFoundError
 from importlib.metadata import version as _version
 
 try:
-    # Single source of truth is the "version" field in pyproject.toml
-    __version__ = _version("bayescd")
+    # Single source of truth is the "version" field in pyproject.toml. The
+    # argument is the *distribution* name, renamed from "bayescd" in 1.1.0;
+    # the fallback keeps an older install readable.
+    __version__ = _version("bayesian-changepoint")
 except PackageNotFoundError:  # running from a source tree without an install
-    __version__ = "unknown"
+    try:
+        __version__ = _version("bayescd")
+    except PackageNotFoundError:
+        __version__ = "unknown"
 
 from . import generate_data, offline_likelihoods, online_likelihoods
 from .bayesian_models import (

@@ -6,6 +6,8 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+## [1.1.0] — 2026-09-22
+
 ### Changed (breaking)
 
 - `online_changepoint_detection` now returns `(R, map_run_lengths)`. The second
@@ -32,8 +34,15 @@ All notable changes to this project are documented here. The format follows
   arguments are unaffected.
 - `offline_likelihoods.StudentT` gains keyword-only prior hyperparameters
   `alpha0`, `beta0`, `kappa0`, `mu0` (defaults reproduce the previous prior).
-- Distribution name on PyPI is `bayescd` (unchanged since 0.4); the
-  `bayesian-changepoint-detection` name belongs to an unrelated project.
+- **Distribution renamed to `bayesian-changepoint`** (`pip install
+  bayesian-changepoint`). The import name is unchanged:
+  `import bayesian_changepoint_detection`. The same project was published as
+  `bayescd` up to 0.4 (April 2022) and as `bayesian-changepoint-detection`
+  before that (0.2.dev1); both stay frozen at those releases. Earlier drafts
+  of this changelog and of the packaging metadata called
+  `bayesian-changepoint-detection` an unrelated project; that was wrong, it is
+  this project's own older distribution. `__version__` reads the new
+  distribution's metadata and falls back to `bayescd` for an older install.
   `setup.py`, `setup.cfg`, `requirements.txt` and `uv.lock` were removed;
   `pyproject.toml` is the single source of metadata (license as an SPDX
   expression with `license-files`, per PEP 639; setuptools >= 77). `numpy` and `scipy`
@@ -76,8 +85,14 @@ All notable changes to this project are documented here. The format follows
   `behaviour` (pins current behaviour); every test carries exactly one and
   `tests/conftest.py` fails collection otherwise. `pytest -m math` runs the
   87 tests that would fail if the mathematics were wrong.
-- README rewritten: what the library computes, a working install (with the
-  GitHub route while PyPI still serves 0.4), online/offline/multivariate
+- Releases publish to PyPI with Trusted Publishing (OpenID Connect): `cd.yml`
+  builds the sdist and wheel, checks the version against the tag, uploads with
+  `pypa/gh-action-pypi-publish` and attaches both files to the GitHub release.
+  No PyPI token or password is stored in the repository; the 2022
+  username/password secrets are no longer used. A manual run of the workflow
+  can upload to TestPyPI instead.
+- README rewritten: what the library computes, a working install,
+  online/offline/multivariate
   examples whose printed outputs are the real ones and which run in the test
   suite, how to read `R`, an API table, the package layout, development
   commands, captured example output, measured performance only, the FAQ,
@@ -178,4 +193,5 @@ All notable changes to this project are documented here. The format follows
 
 ## [0.4] — 2022-04-05
 
-- Last NumPy release, published to PyPI as `bayescd`.
+- Last NumPy release, published to PyPI as `bayescd`. (Earlier releases used
+  the distribution name `bayesian-changepoint-detection`.)
