@@ -22,8 +22,9 @@ cleverness, and keep the public API stable.
 
 ## Language
 
-Write this file, all other agent instructions, and every identifier
-(function, method, class, argument, test marker) in American English:
+Write this file, all other agent instructions, every identifier
+(function, method, class, argument, test marker) and docstrings in American
+English:
 `initialize`, `normalize`, `behavior`, `color`, `neighbor`, `modeling`.
 The rule is mandatory. Renaming a public identifier to comply needs a
 deprecation path (keep the old name as an alias that warns, note it in
