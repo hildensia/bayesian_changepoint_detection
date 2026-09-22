@@ -81,9 +81,9 @@ Two things that surprise people:
 
 ## Things that are easy to get wrong
 
-**There are two different classes named `BaseLikelihood`, and two named
-`StudentT`.** One pair is in `offline_likelihoods`, the other in
-`online_likelihoods`. They are unrelated and their interfaces are
+**There are two different classes each named `BaseLikelihood`, `StudentT`,
+`MultivariateT` and `Poisson`.** One of each is in `offline_likelihoods`,
+the other in `online_likelihoods`. They are unrelated and their interfaces are
 incompatible. Always import them module-qualified
 (`offline_likelihoods.StudentT`), never bare into a shared namespace.
 
@@ -195,6 +195,10 @@ and after, and put the numbers in the PR.
   detection*. arXiv:0710.3742.
 - Xuan, X., & Murphy, K. (2007). *Modeling changing dependency structure in
   multivariate time series*. ICML. (Multivariate offline likelihoods.)
+- Gelman, A., Carlin, J. B., Stern, H. S., Dunson, D. B., Vehtari, A., &
+  Rubin, D. B. (2013). *Bayesian Data Analysis*, 3rd ed., section 2.6.
+  (Gamma-Poisson conjugacy and the negative-binomial predictive, for both
+  `Poisson` classes.)
 - Murphy, K. (2007). *Conjugate Bayesian analysis of the Gaussian
   distribution*. (Normal-Gamma updates for the univariate `StudentT`
   likelihoods and, per dimension, for `IndependentFeaturesLikelihood`;

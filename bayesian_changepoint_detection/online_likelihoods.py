@@ -475,3 +475,107 @@ class MultivariateT(BaseLikelihood):
             ]
         )
         self.scale_inv = torch.cat([self.scale_inv0.unsqueeze(0), scale_inv_new])
+
+
+class Poisson(BaseLikelihood):
+    """
+    Poisson likelihood with a conjugate Gamma prior, for online detection of
+    changes in the rate of count data.
+
+    For each run length the rate has a ``Gamma(alpha, beta)`` posterior
+    (shape, rate); the predictive of the next count is negative binomial:
+
+    ``p(x) = Gamma(alpha + x) / (Gamma(alpha) x!) (beta / (beta + 1))^alpha
+    (1 / (beta + 1))^x``,
+
+    and after observing ``x`` the posterior becomes ``Gamma(alpha + x,
+    beta + 1)`` (Gelman et al., *Bayesian Data Analysis*, 3rd ed., section
+    2.6).
+
+    Parameters
+    ----------
+    alpha : float, optional
+        Prior shape (default 1.0).
+    beta : float, optional
+        Prior rate (default 1.0). The prior mean rate is ``alpha / beta``; a
+        small ``beta`` makes the prior vague.
+    device : str, torch.device, or None, optional
+        Device to place tensors on.
+
+    Raises
+    ------
+    ValueError
+        From ``pdf`` if an observation is not a single non-negative integer.
+
+    Examples
+    --------
+    >>> import torch
+    >>> likelihood = Poisson(alpha=1.0, beta=0.1)
+    >>> log_probs = likelihood.pdf(torch.tensor(3.0))
+    >>> likelihood.update_theta(torch.tensor(3.0))
+    """
+
+    _run_length_state = ("alpha", "beta")
+
+    def __init__(
+        self,
+        alpha: float = 1.0,
+        beta: float = 1.0,
+        device: Optional[Union[str, torch.device]] = None,
+    ):
+        if not (alpha > 0 and beta > 0):
+            raise ValueError(f"alpha and beta must be positive, got {alpha} and {beta}")
+        super().__init__(device)
+        self.alpha0 = alpha
+        self.beta0 = beta
+        self.alpha = torch.tensor([alpha], device=self.device, dtype=torch.float32)
+        self.beta = torch.tensor([beta], device=self.device, dtype=torch.float32)
+
+    def pdf(self, data: torch.Tensor) -> torch.Tensor:
+        """
+        Log negative-binomial predictive of one count for every run length.
+
+        Parameters
+        ----------
+        data : torch.Tensor
+            A single non-negative integer count.
+
+        Returns
+        -------
+        torch.Tensor
+            Log predictive probabilities, one per current run length.
+        """
+        data = ensure_tensor(data, device=self.device)
+        if data.numel() != 1:
+            raise ValueError("Poisson expects scalar input data")
+        x = data.reshape(()).to(torch.float32)
+        if bool(x < 0) or bool(x != torch.round(x)):
+            raise ValueError(
+                f"Poisson expects a non-negative integer count, got {x.item()}"
+            )
+        self.t += 1
+        return (
+            torch.lgamma(self.alpha + x)
+            - torch.lgamma(self.alpha)
+            - torch.lgamma(x + 1)
+            + self.alpha * torch.log(self.beta / (self.beta + 1))
+            - x * torch.log1p(self.beta)
+        )
+
+    def update_theta(self, data: torch.Tensor, **kwargs) -> None:
+        """
+        Conjugate update ``alpha += x``, ``beta += 1`` for every run length,
+        with the prior prepended for run length 0.
+
+        Parameters
+        ----------
+        data : torch.Tensor
+            The count just observed.
+        """
+        x = ensure_tensor(data, device=self.device).reshape(()).to(torch.float32)
+        prior_alpha = torch.tensor(
+            [self.alpha0], device=self.device, dtype=torch.float32
+        )
+        prior_beta = torch.tensor([self.beta0], device=self.device, dtype=torch.float32)
+        self.alpha = torch.cat([prior_alpha, self.alpha + x])
+        self.beta = torch.cat([prior_beta, self.beta + 1.0])

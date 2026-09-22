@@ -20,7 +20,7 @@ multivariate series.
 - 🔭 **Online detection**: the run-length posterior after every observation (Adams & MacKay 2007), for streams and for measuring how quickly a change would have been noticed
 - 🔍 **Offline detection**: the exact posterior probability of a changepoint at every position given the whole series (Fearnhead 2006)
 - 🎯 **Calibrated outputs**: probabilities you can threshold, MAP segment starts, and the single most probable segmentation (`viterbi_changepoints`)
-- 📐 **Conjugate likelihoods**: Student-t predictive for univariate data (unknown mean and variance), multivariate-t for vector data (unknown mean and covariance), independent-features and covariance-only variants
+- 📐 **Conjugate likelihoods**: Student-t predictive for univariate data (unknown mean and variance), multivariate-t for vector data (unknown mean and covariance), independent-features and covariance-only variants, and Gamma-Poisson for counts
 - 🧮 **Verified mathematics**: closed forms checked against `scipy` and against exhaustive enumeration of segmentations; every pinned number in the test suite says where it comes from
 - ⚡ **Vectorized recursions**: both detectors are O(T²) with the inner work on tensors, not Python loops; 1 000 points offline in under 4 s on a laptop CPU
 - 🖥️ **Runs where your tensors are**: CPU, CUDA or Apple MPS through one `device` argument, with measured guidance on when an accelerator is *not* worth it
@@ -232,6 +232,7 @@ and how much memory the tables need: [docs/devices.md](https://github.com/hilden
 | `const_prior`, `geometric_prior`, `negative_binomial_prior` | log prior on segment length for the offline detector |
 | `online_likelihoods.StudentT`, `online_likelihoods.MultivariateT` | online conjugate models (Normal-Gamma, Normal-Wishart) |
 | `offline_likelihoods.StudentT`, `MultivariateT`, `IndependentFeaturesLikelihood`, `FullCovarianceLikelihood` | offline segment marginal likelihoods |
+| `online_likelihoods.Poisson`, `offline_likelihoods.Poisson` | count data: Gamma-Poisson, negative-binomial predictive |
 | `get_device`, `get_device_info`, `to_tensor` | device helpers |
 
 All public functions have NumPy-style docstrings with the formulas and the
@@ -485,8 +486,9 @@ and the legacy truncation can drop the dominant term.
 ### My data are not normally distributed. Can I still use this? (issue #36)
 
 Every likelihood here assumes that **within a segment** the observations are
-independent and Gaussian, and it detects changes in the mean and/or the
-(co)variance of that Gaussian:
+independent draws from one distribution. The Gaussian ones detect changes in
+the mean and/or the (co)variance; `Poisson` detects changes in the rate of
+counts:
 
 | likelihood | within-segment model |
 |---|---|
@@ -494,6 +496,7 @@ independent and Gaussian, and it detects changes in the mean and/or the
 | online `MultivariateT` | i.i.d. multivariate Normal, unknown mean and covariance (Normal-Wishart) |
 | offline `IndependentFeaturesLikelihood` | one Normal-Gamma model per dimension, independent |
 | offline `MultivariateT` | i.i.d. multivariate Normal, unknown mean and covariance (Normal-Wishart) |
+| online `Poisson`, offline `Poisson` | i.i.d. Poisson counts, unknown rate (Gamma prior); multivariate offline input is independent Poisson dimensions |
 | offline `FullCovarianceLikelihood` | multivariate Normal with unknown covariance and **no mean parameter** (mean zero, Xuan & Murphy 2007): it detects covariance changes; segments that differ in mean are misread as scale changes, so use `MultivariateT` when means move |
 
 When the data are not Gaussian the detector still runs, and the question is
@@ -503,9 +506,12 @@ what the misspecification does to it:
   a new segment. The Student-t predictive already tolerates some of this;
   a larger `lam` or `kappa` helps, and so does a transform (log for positive,
   right-skewed quantities such as latencies or prices).
-- **Counts or bounded data**: a variance-stabilizing transform (square root
-  or Anscombe for counts, logit for proportions) usually gets you close
-  enough. A Poisson likelihood is on the roadmap (issue #23).
+- **Counts**: use `online_likelihoods.Poisson` / `offline_likelihoods.Poisson`
+  (non-negative integers only). Counts that vary more than a Poisson allows
+  (overdispersion) will show extra changepoints; a square-root or Anscombe
+  transform with `StudentT` is the alternative.
+- **Bounded data**: a transform (logit for proportions) usually gets you
+  close enough.
 - **Autocorrelation or slow drift**: the model has no notion of dynamics
   within a segment, so a drift is reported as a sequence of small changes.
   Differencing, or modeling residuals from a trend, is the usual fix.
