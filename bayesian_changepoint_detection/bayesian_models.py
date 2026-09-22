@@ -136,8 +136,10 @@ def offline_changepoint_detection(
 
     Notes
     -----
-    This algorithm has O(T^2) time complexity in the worst case, but the truncation
-    parameter can make it approximately O(T) for most practical cases.
+    The backward recursion for ``Q`` and ``P`` takes O(T^2) time and memory;
+    the changepoint table ``Pcp`` takes O(T^3) time (a sum over the previous
+    changepoint for every changepoint index and position), which dominates
+    above about 1 000 points. ``truncate`` does not change either.
 
     Model (Fearnhead 2006, section 2): segment lengths are i.i.d. with mass
     function ``g``, except the last segment, whose length is only known to be
