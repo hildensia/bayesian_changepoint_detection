@@ -51,7 +51,7 @@ jobs:
           --cov=bayesian_changepoint_detection
           --cov-report=term-missing
           --cov-report=xml
-          --cov-fail-under=93
+          --cov-fail-under=94
 
       - name: Publish the coverage table in the job summary
         if: always() && matrix.python-version == '3.12'
