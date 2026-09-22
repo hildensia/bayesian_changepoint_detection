@@ -17,8 +17,11 @@ Run from the repository root::
     python benchmarks/performance.py --report benchmarks/results/<file>.json
 
 Versions: ``current`` (this checkout, uncommitted changes included) and any
-git tag, by default ``v1.1.0``, ``v1.0.0`` and ``v0.4`` (the NumPy
-implementation, which additionally needs ``scipy`` and ``decorator``).
+git ref (a tag, a branch such as ``origin/master``, a commit), by default
+``v1.1.0``, ``v1.0.0`` and ``v0.4`` (the NumPy implementation, which
+additionally needs ``scipy`` and ``decorator``). A ref other than those three
+is run with the current adapter, so ``--versions current,origin/master``
+times a branch against master.
 """
 
 import argparse
@@ -141,9 +144,12 @@ def _run_case(case, pythonpath):
 
 def run(args):
     versions = args.versions.split(",")
-    unknown = set(versions) - set(ALL_VERSIONS) - set(_git("tag").split())
-    if unknown:
-        sys.exit(f"unknown versions: {sorted(unknown)}")
+    for version in versions:
+        if version != "current":
+            try:
+                _git("rev-parse", "--verify", "--quiet", f"{version}^{{commit}}")
+            except subprocess.CalledProcessError:
+                sys.exit(f"unknown version (not a git ref): {version}")
     report = {"environment": _environment(args), "versions": {}, "results": []}
     with tempfile.TemporaryDirectory() as workdir:
         paths = {}
@@ -183,7 +189,8 @@ def run(args):
                     result = _run_case(case, paths[version])
                     report["results"].append(result)
                     print(_line(result), flush=True)
-                    previous = result
+                    if "times" in result:  # extrapolate from the last success
+                        previous = result
     return report
 
 

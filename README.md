@@ -406,10 +406,10 @@ results, including 1.1.0 and more sizes: [`benchmarks/results/2026-09-22-apple-m
 | Workload | this version | 0.4 (NumPy) | 1.0.0 (PyTorch) |
 |---|---|---|---|
 | Offline `StudentT`, 1 000 points | 3.1 s | 24 s | 108 s, misses changes (F1 0.50) |
-| Offline `StudentT`, 2 000 points | 23 s | 101 s | not run (over 400 s) |
+| Offline `StudentT`, 2 000 points | 23 s | 101 s | not run (predicted 426 s) |
 | Offline `MultivariateT`, 5-D, 1 000 points | 3.5 s | not available | 30 s |
 | Online `StudentT`, 1 000 points | 0.16 s | 0.12 s | 39 s |
-| Online `StudentT`, 5 000 points | 1.7 s | 2.0 s | not run (over 800 s) |
+| Online `StudentT`, 5 000 points | 1.7 s | 2.0 s | not run (predicted 825 s) |
 | Online `MultivariateT`, 5-D, 1 000 points | 0.41 s | crashes (`NameError`) | 51 s, wrong (F1 0.04) |
 | `OnlineChangepointDetector`, 50 000 points, `max_run_length=1000` | 9.1 s (180 µs per point) | not available | not available |
 

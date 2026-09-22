@@ -11,6 +11,7 @@ From the repository root, in an environment with the package's dev extra:
 ```bash
 python benchmarks/performance.py                     # full suite: current checkout, v1.1.0, v1.0.0, v0.4
 python benchmarks/performance.py --versions current  # this checkout only
+python benchmarks/performance.py --versions current,origin/master  # a branch against master (any git ref)
 python benchmarks/performance.py --suite quick       # a minute; what CI runs (current only)
 python benchmarks/performance.py --output benchmarks/results/<date>-<machine>-<device>.json
 python benchmarks/performance.py --report benchmarks/results/<file>.json  # tables of a saved run
@@ -37,8 +38,13 @@ clone has none; `git fetch --tags`).
   `MultivariateT(dims=5)`) with its defaults, `const_prior(p = 1 / (n + 1))`,
   each version's default `truncate` (-40 up to 1.1.0, exact since). Online:
   `StudentT(alpha=0.1, beta=0.1, kappa=1, mu=0)` (or `MultivariateT(dims=5)`),
-  `constant_hazard(n / 4)`. Streaming: `OnlineChangepointDetector` with
-  `max_run_length=500`.
+  `constant_hazard(n / 4)`. Streaming: a longer series of 250-point
+  segments (means cycling through the four above), the same `StudentT`,
+  `constant_hazard(250)` and `OnlineChangepointDetector` with
+  `max_run_length=1000`. The bound conditions the posterior on segments no
+  longer than it, so it must exceed the segment length: a first run with
+  2 500-point segments and a bound of 500 forced a changepoint every 500
+  observations (F1 near 0).
 - **Input dtype.** float64, except float32 for 1.0.0, which fails on float64
   input to its multivariate online likelihood.
 - **Timing.** One warm-up call on a 40-point series (imports, allocator,
