@@ -844,9 +844,10 @@ class NormalKnownVariance(_CumsumLikelihood):
         # scatter below enters the marginal linearly, so computing it from
         # uncentered sums would lose it to cancellation for data far from 0
         # (240 nats of error at an offset of 1e8 before this was centered).
-        # One global shift cannot center every segment: regimes ~1e8 noise
-        # standard deviations apart would still lose digits, far outside
-        # practical data (and such a change is detected regardless).
+        # One global shift cannot center every segment: with regimes 1e6
+        # noise standard deviations apart the marginals of single-regime
+        # segments are still off by ~2e-3 nats (measured in the review of
+        # #95); such a change is detected regardless.
         self._shift = data.mean(dim=0)  # [d]
         super()._compute_stats(data - self._shift)
 
