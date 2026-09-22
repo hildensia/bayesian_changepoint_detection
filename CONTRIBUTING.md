@@ -32,8 +32,9 @@ pytest -m math                                 # only the tests that check the m
 pytest --cov=bayesian_changepoint_detection    # with coverage (needs pytest-cov, in the dev extra)
 ```
 
-CI measures coverage on every Python version and fails below 85% of
-statements (87% when the floor was set). The table for Python 3.12 is in the
+CI measures coverage on every Python version and fails below 93% of
+statements (94% in CI when the floor was last raised; a local run on
+macOS reads about one point higher). The table for Python 3.12 is in the
 summary of each CI run. If a PR raises coverage, raise the floor in
 `.github/workflows/ci.yml` with it. Never lower the floor to make a PR pass.
 

@@ -55,7 +55,7 @@ def generate_normal_time_series(
     -----
     Each segment has:
     - Mean sampled from Normal(0, 10²)
-    - Standard deviation sampled from |Normal(0, 1)|
+    - Standard deviation sampled from |Normal(0, 1)| + 0.1 (kept away from 0)
     """
     device = get_device(device)
 
