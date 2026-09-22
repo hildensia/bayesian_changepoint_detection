@@ -8,6 +8,12 @@ All notable changes to this project are documented here. The format follows
 
 ### Added
 
+- `negative_binomial_hazard(k, p, r)` (issue #23): the hazard of negative
+  binomial segment lengths, `P(length = r + 1) / P(length >= r + 1)`, the
+  online counterpart of `negative_binomial_prior` so both detectors can
+  share one prior on segment length. `k = 1` is `constant_hazard(1 / p)`;
+  `k > 1` makes short segments unlikely. Checked against
+  `scipy.stats.nbinom` and against the offline prior.
 - `segment_statistics(data, starts)` and its `SegmentStatistics` result:
   per-segment mean and standard deviation, and for each changepoint the
   change in mean (its direction) and a Welch z-score (issue #42).
