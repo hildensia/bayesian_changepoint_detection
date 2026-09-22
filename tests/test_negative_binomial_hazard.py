@@ -2,9 +2,9 @@
 Tests for ``negative_binomial_hazard``.
 
 ``math``: the hazard equals ``pmf(r + 1) / P(length >= r + 1)`` computed
-with ``scipy.stats.nbinom`` (length - k is scipy's number of failures), and
-it is the conditional probability that ``negative_binomial_prior`` implies.
-``behavior``: the k = 1 reduction, shapes, devices, input checks, and use
+with ``scipy.stats.nbinom`` (length - k is scipy's number of failures).
+``behavior``: agreement with the conditional probability implied by
+``negative_binomial_prior``, the k = 1 reduction, shapes, devices, input checks, and use
 with the online detector.
 """
 
@@ -42,8 +42,10 @@ def test_matches_scipy(k, p):
     np.testing.assert_allclose(hazard, expected, rtol=1e-6, atol=1e-9)
 
 
-@pytest.mark.math
+@pytest.mark.behavior
 def test_is_the_conditional_probability_of_the_offline_prior():
+    # Same closed-form pmf through a second code path (the offline prior),
+    # so behavior, not math; test_matches_scipy is the independent check.
     # H(r) = g(r + 1) / (1 - sum_{l <= r} g(l)) with g the offline prior.
     k, p = 4, 0.1
     lengths = torch.arange(1, 400)

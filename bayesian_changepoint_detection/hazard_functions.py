@@ -129,8 +129,8 @@ def negative_binomial_hazard(
     The online counterpart of ``priors.negative_binomial_prior(t, k, p)``:
     segment lengths follow ``P(length = t) = C(t - 1, k - 1) p^k
     (1 - p)^(t - k)`` for ``t >= k`` (mean ``k / p``), and the hazard at run
-    length ``r`` is the probability that a segment which has lasted ``r``
-    observations ends at the next one,
+    length ``r`` is the probability that a segment holding ``r`` observations
+    ends with the next one, i.e. has length ``r + 1``,
     ``H(r) = P(length = r + 1) / P(length >= r + 1)``
     (Adams & MacKay 2007, section 2.1). With ``k = 1`` the lengths are
     geometric and the hazard is the constant ``p``, i.e.
