@@ -28,9 +28,36 @@ class BaseLikelihood(ABC):
         Device to place tensors on (CPU or GPU).
     """
 
+    #: Names of the tensor attributes indexed by run length along their first
+    #: dimension (entry ``r`` holds the posterior after a run of length
+    #: ``r``). ``prune`` slices exactly these; a subclass that leaves it empty
+    #: cannot be used with a bounded run length.
+    _run_length_state: tuple = ()
+
     def __init__(self, device: Optional[Union[str, torch.device]] = None):
         self.device = get_device(device)
         self.t = 0  # Current time step
+
+    def prune(self, n: int) -> None:
+        """
+        Keep the posterior parameters of run lengths ``0 .. n-1`` only.
+
+        Used by ``OnlineChangepointDetector(max_run_length=...)`` to bound
+        memory on an unbounded stream: after pruning, ``pdf`` returns ``n``
+        densities.
+
+        Raises
+        ------
+        NotImplementedError
+            If the subclass does not declare ``_run_length_state``.
+        """
+        if not self._run_length_state:
+            raise NotImplementedError(
+                f"{type(self).__name__} does not declare _run_length_state, "
+                "so its per-run-length parameters cannot be pruned"
+            )
+        for name in self._run_length_state:
+            setattr(self, name, getattr(self, name)[:n])
 
     def to(self, device: Union[str, torch.device]) -> "BaseLikelihood":
         """
@@ -115,6 +142,8 @@ class StudentT(BaseLikelihood):
     when using Normal-Gamma conjugate priors for Gaussian data with unknown
     mean and variance.
     """
+
+    _run_length_state = ("alpha", "beta", "kappa", "mu")
 
     def __init__(
         self,
@@ -276,6 +305,8 @@ class MultivariateT(BaseLikelihood):
     The multivariate Student's t-distribution generalizes the univariate case
     to multiple dimensions, naturally handling correlations between variables.
     """
+
+    _run_length_state = ("dof", "kappa", "mu", "scale_inv")
 
     def __init__(
         self,

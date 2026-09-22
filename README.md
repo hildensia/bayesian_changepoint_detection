@@ -132,6 +132,34 @@ run length `k` in column `t + k`. `changepoint_probabilities` reads exactly
 that. `viterbi_changepoints(data, hazard, likelihood)` returns the single
 most probable run-length path instead, i.e. the MAP segmentation.
 
+### Streaming
+
+`online_changepoint_detection` needs the whole series and returns the
+`(T+1)²` matrix `R`. For a stream of unknown length, feed observations one
+at a time to `OnlineChangepointDetector`; it keeps only the current
+run-length posterior. With `max_run_length` the memory and the time per
+observation stay bounded: run lengths above the bound are dropped and the
+posterior renormalized, which is exact until the bound is reached and a
+close approximation afterwards when segments are shorter than the bound.
+
+```python
+from bayesian_changepoint_detection import OnlineChangepointDetector
+
+detector = OnlineChangepointDetector(
+    hazard, StudentT(alpha=0.1, beta=0.01, kappa=1, mu=0), max_run_length=500
+)
+starts = []
+for x in data:  # any iterable: a socket, a file, a generator
+    detector.update(x)
+    # P(a segment started 10 observations ago), as changepoint_probabilities
+    if detector.t > 10 and detector.changepoint_probability(lag=10) > 0.5:
+        starts.append(detector.t - 10)
+print(starts)  # [50, 100]
+```
+
+Without `max_run_length` each posterior equals the corresponding column of
+`R` from `online_changepoint_detection` (up to float32 rounding).
+
 ### Offline detection
 
 The offline detector sees the whole series and returns, for every position,
@@ -198,6 +226,7 @@ and how much memory the tables need: [docs/devices.md](https://github.com/hilden
 | `get_map_changepoints(R, min_separation=1)` | indices where the MAP run-length path starts a new segment |
 | `viterbi_changepoints(data, hazard, likelihood)` | the single most probable run-length path and its segment starts |
 | `compute_run_length_posterior(data, hazard, likelihood)` | just `R`, for code that only wants the posterior |
+| `OnlineChangepointDetector(hazard, likelihood, max_run_length=None)` | streaming detector: `update(x)`, `run_length_posterior`, `map_run_length`, `changepoint_probability(lag)` |
 | `offline_changepoint_detection(data, prior, likelihood)` | `Q` (log evidence), `P` (segment log likelihoods), `Pcp` (log probability of the j-th changepoint at t) |
 | `constant_hazard(lam, r)` | hazard `1 / lam` for every run length |
 | `const_prior`, `geometric_prior`, `negative_binomial_prior` | log prior on segment length for the offline detector |
@@ -216,6 +245,7 @@ paper they come from.
 bayesian_changepoint_detection/
 ├── __init__.py             # Public API and __version__ (from package metadata)
 ├── bayesian_models.py      # The two detectors, viterbi_changepoints, and the R helpers
+├── streaming.py            # OnlineChangepointDetector: the online recursion one observation at a time
 ├── online_likelihoods.py   # Online StudentT and MultivariateT: per-run-length predictive densities
 ├── offline_likelihoods.py  # Offline StudentT, MultivariateT, IndependentFeatures, FullCovariance: segment marginals
 ├── priors.py               # const_prior, geometric_prior, negative_binomial_prior (segment-length priors)

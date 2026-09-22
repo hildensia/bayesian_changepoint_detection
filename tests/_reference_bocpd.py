@@ -7,9 +7,12 @@ import numpy as np
 from scipy.stats import multivariate_t
 
 
-def reference_mv_bocpd(X, lam, dof0, kappa0, mu0, W0):
+def reference_mv_bocpd(X, lam, dof0, kappa0, mu0, W0, max_run_length=None):
     """Adams & MacKay with Normal-Wishart predictive, Murphy (2007) eqs 255-258.
-    Precision Lambda ~ Wishart(W, nu); posterior W_n^{-1} = W^{-1} + kappa/(kappa+1) (x-mu)(x-mu)^T."""
+    Precision Lambda ~ Wishart(W, nu); posterior W_n^{-1} = W^{-1} + kappa/(kappa+1) (x-mu)(x-mu)^T.
+    With ``max_run_length`` K, each column is conditioned on run length <= K
+    (entries above K set to 0, the rest renormalized) and the parameters of
+    run lengths above K are discarded."""
     T, D = X.shape
     R = np.zeros((T + 1, T + 1))
     R[0, 0] = 1.0
@@ -20,27 +23,34 @@ def reference_mv_bocpd(X, lam, dof0, kappa0, mu0, W0):
     H = 1.0 / lam
     for t in range(T):
         x = X[t]
-        pred = np.empty(t + 1)
-        for r in range(t + 1):
+        n = len(mu)  # run lengths carried: t + 1, or at most K + 1 when bounded
+        pred = np.empty(n)
+        for r in range(n):
             tdof = nu[r] - D + 1
             shape = Winv[r] * (kappa[r] + 1) / (kappa[r] * tdof)
             pred[r] = multivariate_t.pdf(x, loc=mu[r], shape=shape, df=tdof)
-        R[1 : t + 2, t + 1] = R[: t + 1, t] * pred * (1 - H)
-        R[0, t + 1] = np.sum(R[: t + 1, t] * pred * H)
+        R[1 : n + 1, t + 1] = R[:n, t] * pred * (1 - H)
+        R[0, t + 1] = np.sum(R[:n, t] * pred * H)
         R[:, t + 1] /= R[:, t + 1].sum()
+        if max_run_length is not None:
+            R[max_run_length + 1 :, t + 1] = 0.0
+            R[:, t + 1] /= R[:, t + 1].sum()
         new_mu, new_kappa, new_nu, new_Winv = (
             [mu0.copy()],
             [kappa0],
             [dof0],
             [np.linalg.inv(W0)],
         )
-        for r in range(t + 1):
+        for r in range(n):
             d = x - mu[r]
             new_mu.append((kappa[r] * mu[r] + x) / (kappa[r] + 1))
             new_kappa.append(kappa[r] + 1)
             new_nu.append(nu[r] + 1)
             new_Winv.append(Winv[r] + kappa[r] / (kappa[r] + 1) * np.outer(d, d))
         mu, kappa, nu, Winv = new_mu, new_kappa, new_nu, new_Winv
+        if max_run_length is not None:
+            keep = max_run_length + 1
+            mu, kappa, nu, Winv = mu[:keep], kappa[:keep], nu[:keep], Winv[:keep]
     return R
 
 
