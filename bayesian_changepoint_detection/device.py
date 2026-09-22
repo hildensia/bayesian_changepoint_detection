@@ -1,8 +1,8 @@
 """
 Device management utilities for PyTorch tensors.
 
-This module provides utilities for automatic device detection and tensor management
-across CPU and GPU platforms.
+This module provides device selection (CPU by default, accelerators on request)
+and tensor coercion.
 """
 
 from typing import Optional, Union
@@ -14,10 +14,18 @@ def get_device(device: Optional[Union[str, torch.device]] = None) -> torch.devic
     """
     Get the appropriate PyTorch device.
 
+    The default is the CPU. Accelerators are opt-in: pass ``"auto"`` for the
+    first available of CUDA, MPS and CPU, or name the device. (Up to 1.1.0
+    ``None`` meant ``"auto"``; on the laptops where it was measured the CPU
+    was 6-30x faster than MPS for the online detector, and the offline
+    detector cannot run on MPS at all, so the automatic choice was a poor
+    default.)
+
     Parameters
     ----------
     device : str, torch.device, or None, optional
-        Desired device. If None, automatically selects the best available device.
+        Desired device. ``None`` selects the CPU; ``"auto"`` selects the
+        best available device.
 
     Returns
     -------
@@ -26,17 +34,19 @@ def get_device(device: Optional[Union[str, torch.device]] = None) -> torch.devic
 
     Examples
     --------
-    >>> device = get_device()  # Auto-select best device
-    >>> device = get_device('cpu')  # Force CPU
-    >>> device = get_device('cuda:0')  # Force specific GPU
+    >>> get_device()
+    device(type='cpu')
+    >>> device = get_device("auto")  # CUDA, then MPS, then CPU
+    >>> device = get_device("cuda:0")  # a specific GPU
     """
     if device is None:
+        return torch.device("cpu")
+    if isinstance(device, str) and device == "auto":
         if torch.cuda.is_available():
             return torch.device("cuda")
-        elif hasattr(torch.backends, "mps") and torch.backends.mps.is_available():
+        if hasattr(torch.backends, "mps") and torch.backends.mps.is_available():
             return torch.device("mps")
-        else:
-            return torch.device("cpu")
+        return torch.device("cpu")
 
     return torch.device(device)
 

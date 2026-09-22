@@ -53,11 +53,12 @@ mathematics (see "Changing the math").
 
 Two things that surprise people:
 
-- **The suite is dramatically slower on a machine with MPS or CUDA**, because
-  device selection is automatic and small tensors on an accelerator are slower
-  than on CPU. The same suite can take minutes on Apple Silicon and seconds on
-  CPU. When adding tests, pass `device="cpu"` explicitly unless the test is
-  specifically about device handling.
+- **The suite is dramatically slower on an accelerator**: small tensors on
+  MPS or CUDA are slower than on the CPU (minutes against seconds on Apple
+  Silicon). The default device is the CPU since 1.2.0 (`get_device(None)`;
+  `"auto"` opts into an accelerator), and both detectors follow the
+  likelihood's device. Still pass `device="cpu"` explicitly in tests unless
+  the test is specifically about device handling.
 - Tests that need a GPU should carry `@pytest.mark.gpu` and skip themselves
   when none is present. Most do; `test_device_consistency` in
   `tests/test_integration.py` skips without the marker. Do not make a test

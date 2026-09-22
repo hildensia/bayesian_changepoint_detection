@@ -105,7 +105,8 @@ def offline_changepoint_detection(
         likelihoods are computed for every end in one vectorized call, the
         rule also saves no work. Kept only so old results can be reproduced.
     device : str, torch.device, or None, optional
-        Device to place tensors on.
+        Device to place tensors on; defaults to the likelihood's device
+        (the CPU unless the likelihood was built elsewhere).
 
     Returns
     -------
@@ -161,6 +162,10 @@ def offline_changepoint_detection(
     Fearnhead, P. (2006). Exact and efficient Bayesian inference for multiple
     changepoint problems. Statistics and Computing, 16(2), 203-213.
     """
+    # Follow the likelihood when no device is given, as the online detector
+    # does, so opting into an accelerator once (on the likelihood) is enough.
+    if device is None and hasattr(likelihood_model, "device"):
+        device = likelihood_model.device
     device = get_device(device)
     if device.type == "mps":
         # The offline recursion needs float64, which MPS does not support.

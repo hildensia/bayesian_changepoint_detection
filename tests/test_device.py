@@ -19,11 +19,45 @@ pytestmark = pytest.mark.behavior
 class TestDeviceManagement:
     """Test device management functionality."""
 
+    def test_default_is_cpu(self):
+        """Accelerators are opt-in: None means the CPU (1.1.0 auto-selected)."""
+        assert get_device() == torch.device("cpu")
+        assert get_device(None) == torch.device("cpu")
+
     def test_get_device_auto(self):
-        """Test automatic device selection."""
-        device = get_device()
-        assert isinstance(device, torch.device)
-        assert device.type in ["cpu", "cuda", "mps"]
+        """ "auto" picks the first available of CUDA, MPS, CPU."""
+        device = get_device("auto")
+        if torch.cuda.is_available():
+            expected = "cuda"
+        elif hasattr(torch.backends, "mps") and torch.backends.mps.is_available():
+            expected = "mps"
+        else:
+            expected = "cpu"
+        assert device.type == expected
+
+    def test_constructors_default_to_cpu(self):
+        """Likelihoods built without a device, and the detectors that follow
+        them, stay on the CPU even when an accelerator is present."""
+        from functools import partial
+
+        from bayesian_changepoint_detection import (
+            const_prior,
+            constant_hazard,
+            offline_changepoint_detection,
+            offline_likelihoods,
+            online_changepoint_detection,
+            online_likelihoods,
+        )
+
+        data = torch.cat([torch.zeros(10), torch.ones(10)])
+        R, _ = online_changepoint_detection(
+            data, partial(constant_hazard, 10), online_likelihoods.StudentT()
+        )
+        assert R.device.type == "cpu"
+        Q, P, Pcp = offline_changepoint_detection(
+            data, partial(const_prior, p=1 / 21), offline_likelihoods.StudentT()
+        )
+        assert Q.device.type == P.device.type == Pcp.device.type == "cpu"
 
     def test_get_device_explicit(self):
         """Test explicit device specification."""

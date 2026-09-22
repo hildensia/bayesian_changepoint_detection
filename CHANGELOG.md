@@ -93,6 +93,17 @@ All notable changes to this project are documented here. The format follows
 
 ### Changed
 
+- **The default device is the CPU.** `get_device(None)`, and therefore every
+  likelihood, prior, hazard and generator built without `device`, now
+  returns the CPU; up to 1.1.0 it picked CUDA, then MPS, when present.
+  `get_device("auto")` keeps the old choice. `offline_changepoint_detection`
+  now follows the likelihood's device when `device` is omitted, as the online
+  detectors already did, so naming a device once on the likelihood is enough
+  for both. Results are the same; only where they are computed changes. On
+  the hardware measured (Apple M-series), the CPU was 6-30x faster than MPS
+  for the online detector, and the offline detector could not use MPS.
+  Users who relied on automatic GPU placement should pass `device="auto"`
+  (or `"cuda"`) to the likelihood.
 - The test marker `behaviour` is now `behavior` (`pytest -m behavior`), under
   the new rule that the project's identifiers use American English. No
   library names changed; none used British spellings.
