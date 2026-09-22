@@ -95,6 +95,9 @@ jobs:
       - uses: pypa/gh-action-pypi-publish@release/v1
 
   attach:
+    # Runs after the upload, so a failure here means the release IS already on
+    # PyPI (uploads cannot be undone) and only the release assets are missing.
+    # Re-running this job alone is safe.
     name: Attach the distribution to the release
     needs: pypi
     if: github.event_name == 'release'
