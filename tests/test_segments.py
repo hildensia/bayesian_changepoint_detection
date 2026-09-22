@@ -104,5 +104,7 @@ def test_invalid_starts(starts):
 def test_invalid_data():
     with pytest.raises(ValueError, match="shape"):
         segment_statistics(torch.zeros(2, 2, 2), [1])
+    with pytest.raises(ValueError, match="must be real"):
+        segment_statistics([1.0, 2 + 1j, 3.0], [1])
     with pytest.raises(ValueError, match="NaN or Inf"):
         segment_statistics(torch.tensor([1.0, float("nan"), 2.0]), [1])

@@ -162,6 +162,8 @@ class TestDefaultDtype:
     def test_complex_input_stays_complex(self):
         # So that the detectors' "data must be real" check can reject it.
         assert to_tensor(np.array([1 + 2j]), device="cpu").is_complex()
+        assert to_tensor([1.0, 2 + 1j], device="cpu").is_complex()
+        assert to_tensor(3j, device="cpu").is_complex()
 
     def test_explicit_dtype_wins(self):
         tensor = to_tensor(np.array([1.5]), device="cpu", dtype=torch.float32)

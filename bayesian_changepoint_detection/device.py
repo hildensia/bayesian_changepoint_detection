@@ -53,8 +53,9 @@ def to_tensor(
     float64 NumPy arrays, Python floats and float64 tensors stay float64,
     float32 stays float32. Integer and boolean input becomes float32, and
     complex input stays complex (so detectors can reject it). On MPS, which
-    has no float64, real input becomes float32. The result is always a new
-    tensor, never a view of the caller's array. (Versions up to
+    has no float64, real input becomes float32. Non-tensor input is always
+    copied, so the result never aliases the caller's array or list (a
+    tensor already on the right device and dtype is returned as is). (Versions up to
     1.1.0 made everything float32, so a float64 NumPy series far from zero
     lost its low digits before any detector saw it.)
 
@@ -100,20 +101,21 @@ def _default_float_dtype(data, device: torch.device) -> torch.dtype:
     """
     source = getattr(data, "dtype", None)
     name = str(source).replace("torch.", "") if source is not None else ""
-    if name.startswith("complex"):
+    if name.startswith("complex") or (source is None and _contains(data, complex)):
         return torch.complex64 if device.type == "mps" else torch.complex128
     if device.type == "mps":
         return torch.float32
     if source is not None:
         return torch.float64 if name == "float64" else torch.float32
-    return torch.float64 if _contains_float(data) else torch.float32
+    return torch.float64 if _contains(data, float) else torch.float32
 
 
-def _contains_float(data) -> bool:
-    if isinstance(data, float):
+def _contains(data, kind: type) -> bool:
+    """Whether a Python scalar or (nested) list/tuple holds a ``kind``."""
+    if isinstance(data, kind):
         return True
     if isinstance(data, (list, tuple)):
-        return any(_contains_float(value) for value in data)
+        return any(_contains(value, kind) for value in data)
     return False
 
 
