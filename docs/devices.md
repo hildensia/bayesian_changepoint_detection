@@ -99,7 +99,7 @@ The online recursion is a Python loop over the observations, and each step
 works on tensors with at most `t + 1` entries. On an accelerator every step
 pays a kernel-launch cost that dwarfs the arithmetic unless the per-step work
 is large (high dimension, long series). The numbers in the README FAQ
-(["Why is it slow on my laptop with a GPU?"](../README.md#why-is-it-slow-on-my-laptop-with-a-gpu))
+(["Why is it slow on my laptop with a GPU?"](https://github.com/hildensia/bayesian_changepoint_detection/blob/master/README.md#why-is-it-slow-on-my-laptop-with-a-gpu))
 were taken on an Apple M-series laptop with PyTorch 2.14, CPU against MPS:
 the CPU is 16x faster on 1 000 univariate points, 6x on 5 000, and 30x on
 1 000 points in 10 dimensions. The offline detector never runs on MPS.

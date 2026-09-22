@@ -94,6 +94,30 @@ jobs:
           done
           ls -l /tmp/examples-out
 
+  docs:
+    # Build the documentation site with --strict, so a broken link, a missing
+    # README snippet section or a docstring mkdocstrings cannot parse fails
+    # the PR. The site is not deployed yet (GitHub Pages needs the repository
+    # owner to enable it); the built HTML is uploaded as an artifact.
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+          cache: pip
+      - name: Install PyTorch (CPU), the package and the docs extra
+        run: |
+          pip install torch --index-url https://download.pytorch.org/whl/cpu
+          pip install -e ".[docs]"
+      - name: Build the site
+        run: mkdocs build --strict
+      - uses: actions/upload-artifact@v7
+        with:
+          name: site
+          path: site/
+
   build:
     # Build the sdist and wheel, check their metadata, then install the wheel
     # into a clean environment (no repository checkout on sys.path) and run

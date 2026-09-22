@@ -6,6 +6,14 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Added
+
+- Documentation site built with MkDocs (Material theme, API reference
+  generated from the docstrings by mkdocstrings), checked with
+  `mkdocs build --strict` in CI. Its pages include sections of the README,
+  so the two stay in sync. The `docs` extra now installs MkDocs instead of
+  Sphinx, which had no configuration in the repository. Not published yet.
+
 ### Changed
 
 - The release workflow uploads from the `pypi` GitHub environment (`testpypi`

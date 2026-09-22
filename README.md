@@ -1,4 +1,5 @@
 # 📈 Bayesian Changepoint Detection
+<!-- --8<-- [start:intro] -->
 
 Find the points where a time series changes regime, with calibrated posterior
 probabilities instead of a threshold. Online (Adams & MacKay 2007) and offline
@@ -11,7 +12,10 @@ multivariate series.
 [![Python 3.9+](https://img.shields.io/badge/python-3.9+-blue.svg)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://github.com/hildensia/bayesian_changepoint_detection/blob/master/LICENSE)
 
+<!-- --8<-- [end:intro] -->
+
 ## ✨ Features
+<!-- --8<-- [start:features] -->
 
 - 🔭 **Online detection**: the run-length posterior after every observation (Adams & MacKay 2007), for streams and for measuring how quickly a change would have been noticed
 - 🔍 **Offline detection**: the exact posterior probability of a changepoint at every position given the whole series (Fearnhead 2006)
@@ -22,9 +26,12 @@ multivariate series.
 - 🖥️ **Runs where your tensors are**: CPU, CUDA or Apple MPS through one `device` argument, with measured guidance on when an accelerator is *not* worth it
 - 🪶 **One dependency**: `torch`; NumPy, SciPy and Matplotlib are only needed for the tests and examples
 
+<!-- --8<-- [end:features] -->
+
 ## 🚀 Quick Start
 
 ### Installation
+<!-- --8<-- [start:install] -->
 
 ```bash
 pip install bayesian-changepoint
@@ -71,7 +78,10 @@ lists every breaking change.
   PyTorch, install it first following <https://pytorch.org/get-started/locally/>;
   the CPU build is enough for everything in this README.
 
+<!-- --8<-- [end:install] -->
+
 ## 📖 Usage
+<!-- --8<-- [start:usage] -->
 
 ### Online detection
 
@@ -194,6 +204,8 @@ and how much memory the tables need: [docs/devices.md](https://github.com/hilden
 
 All public functions have NumPy-style docstrings with the formulas and the
 paper they come from.
+
+<!-- --8<-- [end:usage] -->
 
 ## 🏗️ Architecture
 
@@ -321,6 +333,7 @@ several lengths), and the notebooks `Example_Code.ipynb` and
 `Multivariate_Example.ipynb`. The scripts run in CI on every push.
 
 ## ⚡ Performance
+<!-- --8<-- [start:performance] -->
 
 Both algorithms are O(T²) in the series length: the offline recursion is
 vectorized per start point (one `pdf_rows` call gives the likelihood of every
@@ -340,7 +353,10 @@ Measured on an Apple M-series laptop, CPU, 4 threads, PyTorch 2.14:
 Accelerators: see the FAQ; MPS is slower than the CPU on all of these, CUDA
 is unmeasured (issue #43). Only measured numbers appear in this README.
 
+<!-- --8<-- [end:performance] -->
+
 ## ❓ FAQ
+<!-- --8<-- [start:faq] -->
 
 ### Which detector should I use, online or offline?
 
@@ -482,6 +498,8 @@ selected. Pass `device="cpu"` to both the likelihood and the detector unless
 you have measured otherwise on your hardware; CUDA has not been benchmarked
 (issue #43).
 
+<!-- --8<-- [end:faq] -->
+
 ## 🤝 Contributing
 
 Contributions are welcome. Please see the [Contributing Guidelines](https://github.com/hildensia/bayesian_changepoint_detection/blob/master/CONTRIBUTING.md)
@@ -510,11 +528,14 @@ pinning a number says where the number comes from) and the review process.
 This project is licensed under the MIT License - see the [LICENSE](https://github.com/hildensia/bayesian_changepoint_detection/blob/master/LICENSE) file for details.
 
 ## 🔗 Related Resources
+<!-- --8<-- [start:references] -->
 
 - Ryan P. Adams and David J. C. MacKay (2007). *Bayesian Online Changepoint Detection*. arXiv:0710.3742. <https://arxiv.org/abs/0710.3742> — the online algorithm.
 - Paul Fearnhead (2006). *Exact and Efficient Bayesian Inference for Multiple Changepoint Problems*. Statistics and Computing 16(2), 203–213. <https://doi.org/10.1007/s11222-006-8450-8> — the offline algorithm.
 - Xiang Xuan and Kevin Murphy (2007). *Modeling Changing Dependency Structure in Multivariate Time Series*. ICML 2007, 1055–1062. <https://doi.org/10.1145/1273496.1273629> — the multivariate likelihoods.
 - Kevin P. Murphy (2007). *Conjugate Bayesian analysis of the Gaussian distribution*. Technical note. <https://www.cs.ubc.ca/~murphyk/Papers/bayesGauss.pdf> — the Normal-Gamma and Normal-Wishart closed forms used in the likelihoods.
+
+<!-- --8<-- [end:references] -->
 
 ## 🙏 Acknowledgements
 
@@ -522,6 +543,7 @@ This project is licensed under the MIT License - see the [LICENSE](https://githu
 - **Esteban Carisimo** did the PyTorch rewrite, the vectorized recursions, the verified likelihoods and the current maintenance.
 
 ### Citation
+<!-- --8<-- [start:citation] -->
 
 If you use this library in your research, please cite it (GitHub's "Cite
 this repository" button reads [CITATION.cff](https://github.com/hildensia/bayesian_changepoint_detection/blob/master/CITATION.cff)):
@@ -538,3 +560,5 @@ this repository" button reads [CITATION.cff](https://github.com/hildensia/bayesi
 
 The algorithms are due to Adams & MacKay (2007) and Fearnhead (2006); please
 cite those papers as well.
+
+<!-- --8<-- [end:citation] -->

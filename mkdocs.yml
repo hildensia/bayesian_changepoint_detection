@@ -1,0 +1,76 @@
+# Documentation site. Build it with `mkdocs build --strict` (the `docs`
+# extra has the dependencies); CI does that on every PR. Most pages include
+# sections of README.md through the snippet markers there, so the README and
+# the site cannot drift apart. The API pages are generated from the
+# docstrings.
+site_name: Bayesian Changepoint Detection
+site_description: Online and offline Bayesian changepoint detection on PyTorch tensors
+repo_url: https://github.com/hildensia/bayesian_changepoint_detection
+repo_name: hildensia/bayesian_changepoint_detection
+edit_uri: edit/master/docs/
+copyright: MIT License. Johannes Kulick, Esteban Carisimo and contributors.
+
+theme:
+  name: material
+  features:
+    - content.code.copy
+    - navigation.sections
+    - navigation.top
+    - search.highlight
+  palette:
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      toggle:
+        icon: material/brightness-7
+        name: Switch to dark mode
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      toggle:
+        icon: material/brightness-4
+        name: Switch to light mode
+
+nav:
+  - Home: index.md
+  - Installation: installation.md
+  - Usage: usage.md
+  - Devices: devices.md
+  - Performance: performance.md
+  - FAQ: faq.md
+  - API reference:
+      - Detectors: api/detectors.md
+      - Online likelihoods: api/online_likelihoods.md
+      - Offline likelihoods: api/offline_likelihoods.md
+      - Hazard functions: api/hazard_functions.md
+      - Priors: api/priors.md
+      - Devices: api/device.md
+      - Synthetic data: api/generate_data.md
+  - Changelog: changelog.md
+  - Contributing: contributing.md
+  - Citing: citing.md
+
+markdown_extensions:
+  - admonition
+  - tables
+  - toc:
+      permalink: true
+  - pymdownx.highlight
+  - pymdownx.superfences
+  - pymdownx.snippets:
+      # Paths are relative to the repository root; a missing file or
+      # section fails the build instead of rendering an empty page.
+      base_path: ["."]
+      check_paths: true
+
+plugins:
+  - search
+  - mkdocstrings:
+      handlers:
+        python:
+          options:
+            docstring_style: numpy
+            show_source: false
+            show_root_heading: false
+            show_root_toc_entry: false
+            members_order: source
+            heading_level: 2
+            filters: ["!^_"]
