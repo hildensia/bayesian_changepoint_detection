@@ -37,6 +37,15 @@ All notable changes to this project are documented here. The format follows
 
 ### Fixed
 
+- Offline likelihoods stay exact for data far from zero (issue #55). The
+  prefix sums are now taken on data centered on its mean, and the
+  multivariate determinants use the matrix determinant lemma for the
+  rank-one mean term. Against exact rational arithmetic the error at a data
+  offset of 1e8 drops from 44 nats (`StudentT`, prior mean at the data), 17
+  (`MultivariateT`), 16 (`FullCovarianceLikelihood`) and 1.6
+  (`IndependentFeaturesLikelihood`) to float64 rounding, out to offsets of
+  1e10. Results for ordinary data change only at the level of rounding, and
+  run time is unchanged.
 - The three detectors validate their input in one place, before any work:
   data must be `[T]` or `[T, D]`, non-empty, real, finite and, when the
   likelihood declares `dims`, have that many components per observation.
