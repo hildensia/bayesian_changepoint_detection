@@ -373,6 +373,8 @@ vectorized per start point (one `pdf_rows` call gives the likelihood of every
 segment starting there), the online recursion over run lengths at each step.
 Memory is also O(T²): the run-length posterior `R` is `(T+1)²` float32, the
 offline tables about `16 T²` bytes (see [docs/devices.md](https://github.com/hildensia/bayesian_changepoint_detection/blob/master/docs/devices.md#memory)).
+`OnlineChangepointDetector` with `max_run_length=K` is O(K) in memory and
+time per observation instead.
 
 Measured on an Apple M-series laptop, CPU, 4 threads, PyTorch 2.14:
 
@@ -382,6 +384,7 @@ Measured on an Apple M-series laptop, CPU, 4 threads, PyTorch 2.14:
 | Online `StudentT`, 1 000 points | 0.16 s |
 | Online `StudentT`, 5 000 points | 1.7 s |
 | Online `MultivariateT`, 10-D, 1 000 points | 0.56 s |
+| `OnlineChangepointDetector`, `StudentT`, 20 000 points, `max_run_length=500` | 2.6 s (128 µs per point, flat) |
 
 Accelerators: see the FAQ; MPS is slower than the CPU on all of these, CUDA
 is unmeasured (issue #43). Only measured numbers appear in this README.
