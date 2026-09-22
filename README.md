@@ -248,6 +248,7 @@ and how much memory the tables need: [docs/devices.md](https://github.com/hilden
 | `OnlineChangepointDetector(hazard, likelihood, max_run_length=None)` | streaming detector: `update(x)`, `run_length_posterior`, `map_run_length`, `changepoint_probability(lag)` |
 | `offline_changepoint_detection(data, prior, likelihood)` | `Q` (log evidence), `P` (segment log likelihoods), `Pcp` (log probability of the j-th changepoint at t) |
 | `constant_hazard(lam, r)` | hazard `1 / lam` for every run length |
+| `negative_binomial_hazard(k, p, r)` | hazard of negative binomial segment lengths (mean `k / p`); the online counterpart of `negative_binomial_prior` |
 | `const_prior`, `geometric_prior`, `negative_binomial_prior` | log prior on segment length for the offline detector |
 | `online_likelihoods.StudentT`, `online_likelihoods.MultivariateT` | online conjugate models (Normal-Gamma, Normal-Wishart) |
 | `offline_likelihoods.StudentT`, `MultivariateT`, `IndependentFeaturesLikelihood`, `FullCovarianceLikelihood` | offline segment marginal likelihoods |
@@ -271,7 +272,7 @@ bayesian_changepoint_detection/
 ├── online_likelihoods.py   # Online StudentT and MultivariateT: per-run-length predictive densities
 ├── offline_likelihoods.py  # Offline StudentT, MultivariateT, IndependentFeatures, FullCovariance: segment marginals
 ├── priors.py               # const_prior, geometric_prior, negative_binomial_prior (segment-length priors)
-├── hazard_functions.py     # constant_hazard
+├── hazard_functions.py     # constant_hazard, negative_binomial_hazard
 ├── device.py               # get_device, get_device_info, to_tensor, ensure_tensor
 └── generate_data.py        # Synthetic series with known changepoints, for tests and examples
 ```
@@ -486,7 +487,9 @@ In order of importance:
    means fewer detections, more confidence needed, slightly longer delay;
    smaller `lam` means more, earlier, and more false alarms. This is the main
    knob and it is about the data, not the model: set it near the segment
-   length you expect.
+   length you expect. If segments shorter than some minimum are implausible,
+   `negative_binomial_hazard(k, p)` (mean length `k / p`) puts little
+   probability on changes soon after the last one.
 2. **How much you trust the prior versus the first points of a new segment.**
    `kappa` (for the mean) and `alpha` (for the variance) act as pseudo-counts.
    Small values let a few points establish a new regime quickly; larger values
@@ -501,7 +504,8 @@ In order of importance:
 Offline, the equivalent of the hazard is the segment-length prior:
 `const_prior(p=1/(T+1))` is the flat default; `geometric_prior(p=1/L)`
 encodes an expected segment length `L`; `negative_binomial_prior` allows a
-peaked length distribution. Leave `truncate` at its default: the sum is exact
+peaked length distribution, and `negative_binomial_hazard` with the same
+`k` and `p` is its online counterpart. Leave `truncate` at its default: the sum is exact
 and the legacy truncation can drop the dominant term.
 
 ### My data are not normally distributed. Can I still use this? (issue #36)

@@ -30,7 +30,7 @@ from .bayesian_models import (
     viterbi_changepoints,
 )
 from .device import ensure_tensor, get_device, get_device_info, to_tensor
-from .hazard_functions import constant_hazard
+from .hazard_functions import constant_hazard, negative_binomial_hazard
 from .online_likelihoods import MultivariateT, StudentT
 from .priors import const_prior, geometric_prior, negative_binomial_prior
 from .segments import SegmentStatistics, segment_statistics
@@ -51,6 +51,7 @@ __all__ = [
     "segment_statistics",
     "SegmentStatistics",
     "constant_hazard",
+    "negative_binomial_hazard",
     "const_prior",
     "geometric_prior",
     "negative_binomial_prior",
