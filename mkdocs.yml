@@ -4,6 +4,7 @@
 # the site cannot drift apart. The API pages are generated from the
 # docstrings.
 site_name: Bayesian Changepoint Detection
+site_url: https://estcarisimo.github.io/bayesian_changepoint_detection/
 site_description: Online and offline Bayesian changepoint detection on PyTorch tensors
 repo_url: https://github.com/hildensia/bayesian_changepoint_detection
 repo_name: hildensia/bayesian_changepoint_detection

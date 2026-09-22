@@ -9,6 +9,7 @@ multivariate series.
 
 [![CI](https://github.com/hildensia/bayesian_changepoint_detection/actions/workflows/ci.yml/badge.svg)](https://github.com/hildensia/bayesian_changepoint_detection/actions/workflows/ci.yml)
 [![PyPI](https://img.shields.io/pypi/v/bayesian-changepoint.svg)](https://pypi.org/project/bayesian-changepoint/)
+[![Docs](https://img.shields.io/badge/docs-online-blue.svg)](https://estcarisimo.github.io/bayesian_changepoint_detection/)
 [![Python 3.9+](https://img.shields.io/badge/python-3.9+-blue.svg)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://github.com/hildensia/bayesian_changepoint_detection/blob/master/LICENSE)
 
@@ -257,7 +258,8 @@ and how much memory the tables need: [docs/devices.md](https://github.com/hilden
 | `get_device`, `get_device_info`, `to_tensor` | device helpers |
 
 All public functions have NumPy-style docstrings with the formulas and the
-paper they come from.
+paper they come from; the [API reference](https://estcarisimo.github.io/bayesian_changepoint_detection/api/detectors/) on the
+documentation site is generated from them.
 
 <!-- --8<-- [end:usage] -->
 
@@ -592,6 +594,7 @@ pinning a number says where the number comes from) and the review process.
 
 | Document | Contents |
 | --- | --- |
+| [Documentation site](https://estcarisimo.github.io/bayesian_changepoint_detection/) | Usage, devices, FAQ and the API reference, built from `master` |
 | [CONTRIBUTING.md](https://github.com/hildensia/bayesian_changepoint_detection/blob/master/CONTRIBUTING.md) | Development setup, conventions, releasing |
 | [CHANGELOG.md](https://github.com/hildensia/bayesian_changepoint_detection/blob/master/CHANGELOG.md) | Release history, including the numerical changes in 1.1.0 |
 | [AGENTS.md](https://github.com/hildensia/bayesian_changepoint_detection/blob/master/AGENTS.md) | Conventions for AI coding agents: the two `StudentT`s, index conventions, changing the math |

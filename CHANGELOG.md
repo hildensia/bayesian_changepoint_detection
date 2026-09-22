@@ -42,7 +42,8 @@ All notable changes to this project are documented here. The format follows
   generated from the docstrings by mkdocstrings), checked with
   `mkdocs build --strict` in CI. Its pages include sections of the README,
   so the two stay in sync. The `docs` extra now installs MkDocs instead of
-  Sphinx, which had no configuration in the repository. Not published yet.
+  Sphinx, which had no configuration in the repository. Published at
+  <https://estcarisimo.github.io/bayesian_changepoint_detection/>.
 
 ### Fixed
 

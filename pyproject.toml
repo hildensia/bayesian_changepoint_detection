@@ -70,6 +70,7 @@ gpu = [
 
 [project.urls]
 Homepage = "https://github.com/hildensia/bayesian_changepoint_detection"
+Documentation = "https://estcarisimo.github.io/bayesian_changepoint_detection/"
 Repository = "https://github.com/hildensia/bayesian_changepoint_detection"
 Issues = "https://github.com/hildensia/bayesian_changepoint_detection/issues"
 
