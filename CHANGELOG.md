@@ -15,7 +15,7 @@ All notable changes to this project are documented here. The format follows
   `benchmarks/README.md`; the README's performance table comes from
   `benchmarks/results/2026-09-22-apple-m1-cpu.json`. It showed that 1.0.0's
   multivariate online detector misses almost every change (F1 0.04), that
-  0.4's crashes, and that the offline changepoint table is O(T³). CI runs
+  0.4's multivariate online detector crashes, and that the offline changepoint table is O(T³). CI runs
   the quick suite on the current code so the harness cannot rot.
 
 - `negative_binomial_hazard(k, p, r)` (issue #23): the hazard of negative

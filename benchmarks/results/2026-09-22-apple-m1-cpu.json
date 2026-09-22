@@ -11,7 +11,7 @@
   "device": "cpu",
   "repeats": 5,
   "budget_seconds": 300.0,
-  "notes": "Streaming rows re-run the same evening with 250-point segments, hazard 250 and max_run_length=1000 (the first run used 2500-point segments with a bound of 500, which violates the bound's assumption). The package code of 'current' is master at 0aa5850 in both runs; '-dirty' refers to benchmark and CI files only."
+  "notes": "Streaming rows re-run the same evening with 250-point segments, hazard 250 and max_run_length=1000 (the first run used 2500-point segments with a bound of 500, which violates the bound's assumption). 'current' is master at 0aa5850 (1.1.0 plus the precision fixes, before the CPU default of #103; every case passes device='cpu', so that change does not affect these numbers)."
  },
  "versions": {
   "current": "v1.1.0-18-g0aa5850",
