@@ -140,7 +140,12 @@ the same fallback. Offline prefix sums are taken on data minus its mean
 the shift back as `mean + (shift - mu0)`; rank-one terms in determinants go
 through `_logdet_plus_rank_one`. `tests/test_offline_large_offsets.py`
 checks every offline likelihood against exact rational arithmetic at
-offsets up to 1e10; a new offline likelihood belongs there too.
+offsets up to 1e10; a new offline likelihood belongs there too. The online
+state is float32 by design (it runs on MPS); the translation-equivariant
+online likelihoods keep means relative to the first observation (`_mu_c`,
+`_shift`, subtraction in float64 where the device has it) and expose the
+absolute mean as the read-only `mu` property. A new online likelihood with
+a location parameter should do the same (`tests/test_online_large_offsets.py`).
 
 **Device handling.** Use `device.get_device()` and `device.ensure_tensor()`
 rather than calling `torch.device` or `.to()` ad hoc. A function that accepts
