@@ -9,6 +9,8 @@ predictive against ``scipy.stats.norm`` after hand-computed conjugate
 updates. ``behavior`` tests pin detection rates, streaming and input checks.
 """
 
+import math
+from fractions import Fraction
 from functools import partial
 
 import numpy as np
@@ -80,6 +82,40 @@ def test_offline_marginal_is_the_joint_normal(var, mu0, prior_var):
     for j, value in enumerate(rows):
         expected = chain_rule(array[4 : 4 + 1 + j], mu0, prior_var, var)
         assert value == pytest.approx(expected, abs=1e-9)
+
+
+def exact_log_marginal(values, var, mu0, prior_var):
+    """The closed form evaluated in exact rational arithmetic (the float
+    data are exact rationals), rounded only at the final logs."""
+    n = len(values)
+    d = [Fraction(x) - Fraction(mu0) for x in values]
+    c = Fraction(var) + n * Fraction(prior_var)
+    quadratic = (
+        sum(v * v for v in d) - Fraction(prior_var) * sum(d) ** 2 / c
+    ) / Fraction(var)
+    return (
+        -0.5 * n * math.log(2 * math.pi)
+        - 0.5 * (n - 1) * math.log(var)
+        - 0.5 * math.log(c)
+        - 0.5 * float(quadratic)
+    )
+
+
+@pytest.mark.math
+@pytest.mark.parametrize("offset", [1e4, 1e6, 1e8])
+@pytest.mark.parametrize("mu0_at_data", [False, True], ids=["mu0=0", "mu0=offset"])
+def test_offline_marginal_is_accurate_far_from_zero(offset, mu0_at_data):
+    # Uncentered prefix sums lost 1e-2 nats at offset 1e6 and 240 at 1e8
+    # (review of #95); the sums are now centered on the data mean.
+    gen = torch.Generator().manual_seed(7)
+    data = torch.randn(100, generator=gen, dtype=torch.float64) + offset
+    mu0 = offset if mu0_at_data else 0.0
+    model = offline_likelihoods.NormalKnownVariance(
+        device="cpu", variance=1.0, mu0=mu0, prior_variance=1.0
+    )
+    for t, s in [(0, 100), (10, 60), (95, 100)]:
+        expected = exact_log_marginal(data[t:s].tolist(), 1.0, mu0, 1.0)
+        assert model.pdf(data, t, s) == pytest.approx(expected, rel=1e-12, abs=1e-9)
 
 
 @pytest.mark.math

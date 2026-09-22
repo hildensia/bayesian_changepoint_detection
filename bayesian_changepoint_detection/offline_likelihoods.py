@@ -839,13 +839,31 @@ class NormalKnownVariance(_CumsumLikelihood):
         self.mu0 = mu0
         self.prior_variance = prior_variance
 
+    def _compute_stats(self, data: torch.Tensor) -> None:
+        # Prefix sums of the data centered on its mean: the within-segment
+        # scatter below enters the marginal linearly, so computing it from
+        # uncentered sums would lose it to cancellation for data far from 0
+        # (240 nats of error at an offset of 1e8 before this was centered).
+        # One global shift cannot center every segment: regimes ~1e8 noise
+        # standard deviations apart would still lose digits, far outside
+        # practical data (and such a change is detected regardless).
+        self._shift = data.mean(dim=0)  # [d]
+        super()._compute_stats(data - self._shift)
+
     def _log_marginal(self, t: int, s_hi: int) -> torch.Tensor:
+        # Centered sums; the shift cancels in the scatter and is added back
+        # to the segment mean.
         lengths, sum_x, sum_x2 = self._segment_moments(t, s_hi)
         n = lengths.unsqueeze(-1)  # [m, 1]
-        sum_d = sum_x - n * self.mu0
-        sum_d2 = sum_x2 - 2.0 * self.mu0 * sum_x + n * self.mu0**2
+        mean = sum_x / n  # segment mean minus the shift
+        scatter = torch.clamp(sum_x2 - sum_x * mean, min=0.0)
         c = self.variance + n * self.prior_variance
-        quadratic = (sum_d2 - self.prior_variance * sum_d**2 / c) / self.variance
+        # sum (x - mu0)^2 - prior_variance (sum (x - mu0))^2 / c
+        #   = scatter + n (mean - mu0)^2 variance / c, so
+        # (shift - mu0) first: exact when both are large and close, where
+        # (mean + shift) would round to the grid of the large value.
+        deviation = mean + (self._shift - self.mu0)
+        quadratic = scatter / self.variance + n * deviation**2 / c
         log_marginal = (
             -0.5 * n * _LOG_2PI
             - 0.5 * (n - 1) * math.log(self.variance)
