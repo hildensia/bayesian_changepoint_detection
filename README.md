@@ -228,11 +228,12 @@ mode. Read `changepoint_probabilities` when the exact position matters.
 
 ### Devices
 
-Every likelihood and both detectors take a `device` argument. Selection is
-automatic (CUDA, then MPS, then CPU); pass `device="cpu"` to the likelihood
-and the detector to opt out. On a laptop the CPU is the faster choice for
-the online detector (measured: 6–30x faster than MPS), and the offline
-detector always runs on the CPU under MPS because it needs float64. How the
+Every likelihood and both detectors take a `device` argument. The default
+is the CPU; name a device on the likelihood (`"cuda"`, `"mps"`, or `"auto"`
+for the first available) to opt into an accelerator, and the detectors
+follow it. On a laptop the CPU is the faster choice for the online detector
+(measured: 6–30x faster than MPS), and the offline detector always runs on
+the CPU under MPS because it needs float64. How the
 argument is resolved, what has been measured, how to time your own workload
 and how much memory the tables need: [docs/devices.md](https://github.com/hildensia/bayesian_changepoint_detection/blob/master/docs/devices.md).
 
@@ -321,8 +322,9 @@ pytest tests/test_online_detection.py -v
 ```
 
 Every test carries exactly one of the markers `math` and `behavior`;
-collection fails otherwise. Tests pass `device="cpu"` explicitly, because
-device selection is automatic and the suite is much slower on an accelerator.
+collection fails otherwise. Tests pass `device="cpu"` explicitly even though
+it is the default, so that a test never lands on an accelerator by accident
+(the suite is much slower there).
 The Python blocks in this README and in `docs/` are executed as part of the
 suite.
 
@@ -560,9 +562,10 @@ that the residuals look plausible.
 
 ### Why is it slow on my laptop with a GPU?
 
-Device selection is automatic and prefers CUDA or Apple MPS when present, but
-the online recursion is a sequential loop over small tensors, and each step
-on an accelerator pays a launch cost. Measured on an Apple M-series laptop
+Since 1.2.0 the default device is the CPU. Earlier versions selected CUDA or
+Apple MPS automatically when present, but the online recursion is a
+sequential loop over small tensors, and each step on an accelerator pays a
+launch cost. Measured on an Apple M-series laptop
 (PyTorch 2.14), CPU against MPS:
 
 | workload | CPU | MPS |
@@ -572,9 +575,9 @@ on an accelerator pays a launch cost. Measured on an Apple M-series laptop
 | online `MultivariateT`, 10-D, 1 000 points | 0.56 s | 17 s |
 
 The offline detector needs float64 and always runs on the CPU when MPS is
-selected. Pass `device="cpu"` to both the likelihood and the detector unless
-you have measured otherwise on your hardware; CUDA has not been benchmarked
-(issue #43).
+selected. On 1.1.0 or earlier, pass `device="cpu"` to both the likelihood
+and the detector. Opt into an accelerator only after measuring on your
+hardware; CUDA has not been benchmarked (issue #43).
 
 <!-- --8<-- [end:faq] -->
 

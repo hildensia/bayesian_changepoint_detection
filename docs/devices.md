@@ -6,41 +6,44 @@ says what that argument does, what has been measured, and how to measure on
 your own hardware. Every code block below is executed by the test suite
 (`tests/test_docs_code_blocks.py`), on the CPU.
 
-**Short version:** run on the CPU unless you have timed the alternative.
-On an Apple M-series laptop the CPU beats MPS by 6–30x for the online
-detectors, and the offline detector runs on the CPU whenever MPS is selected
-(see [What has been measured](#what-has-been-measured)). CUDA has not been
+**Short version:** everything runs on the CPU unless you ask for an
+accelerator, and you should ask only after timing it. On an Apple M-series
+laptop the CPU beats MPS by 6–30x for the online detectors, and the offline
+detector runs on the CPU whenever MPS is selected (see
+[What has been measured](#what-has-been-measured)). CUDA has not been
 benchmarked ([issue #43](https://github.com/hildensia/bayesian_changepoint_detection/issues/43)).
 
 ## How a device is chosen
 
-`get_device(None)` picks the first available of CUDA, MPS, CPU; every
-likelihood constructor calls it, so a likelihood built without `device`
-lands on the accelerator when there is one.
+`get_device(None)` returns the CPU, and every likelihood constructor calls
+it, so a likelihood built without `device` lives on the CPU.
+`get_device("auto")` picks the first available of CUDA, MPS, CPU. (Up to
+1.1.0 the automatic choice was the default, which put every computation on
+an accelerator that was usually slower.)
 
 ```python
 from bayesian_changepoint_detection import get_device, get_device_info
 
 print(get_device_info())  # cuda_available, mps_available, devices, ...
-print(get_device())  # the automatic choice on this machine
+print(get_device())  # cpu: the default
+print(get_device("auto"))  # the best available device on this machine
 print(get_device("cpu"))  # an explicit choice is returned unchanged
 ```
 
-The two detectors resolve the device differently:
+Both detectors use the **likelihood's** device when their own `device`
+argument is omitted, so choosing a device once, on the likelihood, is enough:
 
-- `online_changepoint_detection(data, hazard, likelihood, device=None)` (and
-  `viterbi_changepoints`) uses the **likelihood's** device when `device` is
-  omitted. When `device` is given, the likelihood's state, the data and the
-  run-length matrix `R` are all moved to it. Either way everything ends up on
-  one device, so mixed CPU/GPU inputs cannot collide mid-recursion.
+- `online_changepoint_detection(data, hazard, likelihood, device=None)`,
+  `viterbi_changepoints` and `OnlineChangepointDetector`: when `device` is
+  given, the likelihood's state, the data and the run-length matrix `R` are
+  all moved to it. Either way everything ends up on one device, so mixed
+  CPU/GPU inputs cannot collide mid-recursion.
 - `offline_changepoint_detection(data, prior, likelihood, device=None)`
-  resolves `device` with `get_device` (automatic when omitted), moves the data
-  there and points the likelihood at it. The recursion runs in float64. **MPS
-  has no float64**, so when MPS is selected, explicitly or automatically, the
-  offline detector warns and runs on the CPU.
+  moves the data to that device and points the likelihood at it. The
+  recursion runs in float64. **MPS has no float64**, so when MPS is
+  selected the offline detector warns and runs on the CPU.
 
-So the one reliable way to keep a computation on the CPU is to say so on both
-the likelihood and the detector:
+With the defaults, nothing leaves the CPU:
 
 ```python
 from functools import partial
@@ -61,21 +64,21 @@ torch.manual_seed(0)
 data = torch.cat([torch.randn(100), torch.randn(100) + 3])
 
 R, map_run_lengths = online_changepoint_detection(
-    data, partial(constant_hazard, 100), StudentT(device="cpu"), device="cpu"
+    data, partial(constant_hazard, 100), StudentT()
 )
 print("online, segment starts:", get_map_changepoints(R))
 print("R lives on", R.device)
 
 Q, P, changepoint_log_probs = offline_changepoint_detection(
-    data, partial(const_prior, p=1 / 201), OfflineStudentT(device="cpu"), device="cpu"
+    data, partial(const_prior, p=1 / 201), OfflineStudentT()
 )
 changepoint_probs = torch.exp(changepoint_log_probs).sum(0)
 print("offline, P(change) > 0.5 at:", torch.where(changepoint_probs > 0.5)[0] + 1)
 ```
 
-To opt into an accelerator, name it. The online detector follows the
-likelihood, so setting the device there is enough; the code below stays
-correct on a machine without CUDA because it falls back to the CPU.
+To opt into an accelerator, name it on the likelihood (or pass `"auto"`).
+The code below stays correct on a machine without CUDA because it falls
+back to the CPU.
 
 ```python
 device = "cuda" if torch.cuda.is_available() else "cpu"

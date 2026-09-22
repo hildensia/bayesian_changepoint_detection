@@ -33,7 +33,9 @@ def correlation_change_example():
     print("=" * 50)
 
     device = get_device()
-    print(f"Using device: {device}")
+    print(
+        f"Using device: {device} (the default; device='auto' would pick {get_device('auto')})"
+    )
 
     # Generate Xiang & Murphy's motivating example
     print("Generating correlation change example...")
