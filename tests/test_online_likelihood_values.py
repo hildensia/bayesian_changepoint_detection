@@ -113,7 +113,7 @@ def test_multivariate_run_length_posterior_matches_independent_reference():
     assert np.array_equal(R.numpy().argmax(axis=0), expected.argmax(axis=0))
 
 
-@pytest.mark.behaviour
+@pytest.mark.behavior
 def test_default_multivariate_prior_has_unit_covariance():
     """E[precision] = dof * W must be the identity by default."""
     dims = 4
@@ -157,7 +157,7 @@ def test_multivariate_t_long_run_predictive_does_not_drift(n, dims, sd):
     assert np.allclose(model.scale_inv[-1].double().numpy(), TN, rtol=1e-4, atol=1e-2)
 
 
-@pytest.mark.behaviour
+@pytest.mark.behavior
 def test_scale_property_is_the_inverse_of_the_state():
     model = MultivariateT(dims=3, device="cpu")
     for x in torch.randn(5, 3):

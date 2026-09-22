@@ -6,7 +6,7 @@ body:
     id: what
     attributes:
       label: What happened?
-      description: Describe the behaviour and what you expected instead. For a suspicious detection result, say which changepoints you expected and which you got.
+      description: Describe the behavior and what you expected instead. For a suspicious detection result, say which changepoints you expected and which you got.
     validations:
       required: true
   - type: textarea

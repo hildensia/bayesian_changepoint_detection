@@ -13,7 +13,8 @@
 ## Checklist
 
 - [ ] CI is green on `lint`, every `test (3.x)` leg, `examples` and `build`
-- [ ] Tests added or updated for behaviour changes
+- [ ] Tests added or updated for behavior changes
 - [ ] `CHANGELOG.md` has an entry under `[Unreleased]`
-- [ ] Docs updated (`README.md`, docstrings, `examples/`) when user-facing behaviour changed
+- [ ] Docs updated (`README.md`, docstrings, `examples/`) when user-facing behavior changed
+- [ ] New names and docstrings use American English (see "Language" in AGENTS.md)
 - [ ] Review comments addressed (fixed, or answered in the thread)

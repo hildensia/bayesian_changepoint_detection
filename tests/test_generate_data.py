@@ -12,7 +12,7 @@ import torch
 
 from bayesian_changepoint_detection import generate_data as gd
 
-pytestmark = pytest.mark.behaviour
+pytestmark = pytest.mark.behavior
 
 
 def segments(partition, data):

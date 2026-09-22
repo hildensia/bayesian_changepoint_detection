@@ -45,6 +45,9 @@ All notable changes to this project are documented here. The format follows
 
 ### Changed
 
+- The test marker `behaviour` is now `behavior` (`pytest -m behavior`), under
+  the new rule that the project's identifiers use American English. No
+  library names changed; none used British spellings.
 - The release workflow uploads from the `pypi` GitHub environment (`testpypi`
   for rehearsals), so each upload is listed under "Deployments" on the
   repository page. Nothing about the published package changes.

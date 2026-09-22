@@ -13,7 +13,7 @@ from bayesian_changepoint_detection.device import (
     to_tensor,
 )
 
-pytestmark = pytest.mark.behaviour
+pytestmark = pytest.mark.behavior
 
 
 class TestDeviceManagement:

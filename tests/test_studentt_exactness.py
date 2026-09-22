@@ -70,7 +70,7 @@ def test_closed_form_equals_sequential_product(seed, alpha0, beta0, kappa0, mu0)
         )
 
 
-@pytest.mark.behaviour
+@pytest.mark.behavior
 def test_multivariate_input_sums_independent_dimensions():
     """Same formula through two code paths (one call on [n, 3] against three
     univariate calls), so this pins the contract, not the mathematics."""

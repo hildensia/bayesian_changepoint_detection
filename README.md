@@ -116,7 +116,7 @@ R, map_run_lengths = online_changepoint_detection(data, hazard, likelihood)
 
 # Index of the first point of each new segment on the MAP run-length path.
 # min_separation merges starts closer than that many points when the
-# posterior hesitates between neighbours.
+# posterior hesitates between neighbors.
 print(get_map_changepoints(R, min_separation=10))  # tensor([ 50, 100])
 
 # Or a probability per position, judged `lag` observations later.
@@ -285,8 +285,8 @@ pytest
 # Only the tests that check the mathematics against independent references
 pytest -m math
 
-# Only the tests that pin current behaviour (contracts, edge cases, devices, goldens)
-pytest -m behaviour
+# Only the tests that pin current behavior (contracts, edge cases, devices, goldens)
+pytest -m behavior
 
 # With coverage
 pytest --cov=bayesian_changepoint_detection --cov-report=term-missing
@@ -295,7 +295,7 @@ pytest --cov=bayesian_changepoint_detection --cov-report=term-missing
 pytest tests/test_online_detection.py -v
 ```
 
-Every test carries exactly one of the markers `math` and `behaviour`;
+Every test carries exactly one of the markers `math` and `behavior`;
 collection fails otherwise. Tests pass `device="cpu"` explicitly, because
 device selection is automatic and the suite is much slower on an accelerator.
 The Python blocks in this README and in `docs/` are executed as part of the
@@ -471,7 +471,7 @@ In order of importance:
    delay for confidence: a larger `lag` gives a more decisive probability,
    `lag` observations later. `get_map_changepoints(R, min_separation=k)`
    drops starts closer than `k` points to an earlier one, for when the
-   posterior hesitates between neighbouring points.
+   posterior hesitates between neighboring points.
 
 Offline, the equivalent of the hazard is the segment-length prior:
 `const_prior(p=1/(T+1))` is the flat default; `geometric_prior(p=1/L)`
@@ -505,7 +505,7 @@ what the misspecification does to it:
   enough. A Poisson likelihood is on the roadmap (issue #23).
 - **Autocorrelation or slow drift**: the model has no notion of dynamics
   within a segment, so a drift is reported as a sequence of small changes.
-  Differencing, or modelling residuals from a trend, is the usual fix.
+  Differencing, or modeling residuals from a trend, is the usual fix.
 - **Changes in something other than mean or variance** (e.g. in
   autocorrelation) are not detected.
 

@@ -131,7 +131,7 @@ markers = [
     "gpu: marks tests that require GPU",
     # Every test carries exactly one of the next two (tests/conftest.py enforces it).
     "math: checks a value against an independent computation of it: scipy, an exhaustive enumeration, a closed form from a paper, a derivation sharing no code with the one under test",
-    "behaviour: pins current behaviour: API contracts, edge cases, device handling, two code paths of one formula, detection on synthetic data, goldens from an earlier version",
+    "behavior: pins current behavior: API contracts, edge cases, device handling, two code paths of one formula, detection on synthetic data, goldens from an earlier version",
 ]
 
 [tool.coverage.run]
