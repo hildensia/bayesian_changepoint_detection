@@ -16,6 +16,18 @@ All notable changes to this project are documented here. The format follows
 
 ### Fixed
 
+- The three detectors validate their input in one place, before any work:
+  data must be `[T]` or `[T, D]`, non-empty, real, finite and, when the
+  likelihood declares `dims`, have that many components per observation.
+  Violations raise `ValueError`. Before, a 0-d tensor raised `IndexError`,
+  complex data ran, and offline `MultivariateT(dims=3)` silently accepted
+  univariate data or a transposed `[3, T]` tensor (read as three
+  observations of dimension T). A `[D, T]` tensor now gets a "pass data.T"
+  hint. Valid inputs give the same results as before.
+- Offline `MultivariateT` no longer overwrites `dims=None` with the first
+  series' dimension; an explicit `dims` that disagrees with the data raises
+  `ValueError` from `pdf` and `pdf_rows` too.
+
 - `constant_hazard(lam, r)` raises `ValueError` for `lam < 1` and for NaN.
   It used to accept any positive `lam`, so `0 < lam < 1` returned a hazard
   `1 / lam` above 1, which is not a probability and made the online
