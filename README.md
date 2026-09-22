@@ -420,6 +420,25 @@ below) and 35–160x faster than 1.0.0; the online detector runs at the speed
 of the NumPy original (both are a Python loop over time), and its
 multivariate model is correct only since 1.1.0.
 
+Detection quality on real data, measured with [`benchmarks/tcpd.py`](https://github.com/hildensia/bayesian_changepoint_detection/blob/master/benchmarks/README.md#detection-quality-on-real-data-tcpd)
+on the Turing Change Point Dataset (van den Burg and Williams, 2020; 30
+annotated real series, TCPDBench's F1 and covering metrics, higher is
+better):
+
+| Method, default settings | F1 | cover |
+|---|---|---|
+| No changepoints at all (baseline) | 0.668 | 0.575 |
+| BOCPD as published by TCPDBench (R package `ocp`) | 0.696 | 0.636 |
+| This library, online, `viterbi_changepoints` | 0.694 | 0.637 |
+| This library, offline | **0.739** | **0.664** |
+
+The online model reproduces the published BOCPD (identical F1 on 27 of 31
+series; also with tuned settings, 0.887 against 0.890); the offline
+detector beats it without tuning. For a finished series, read the online
+posterior with `viterbi_changepoints` or use the offline detector:
+`get_map_changepoints`, which reports changes as data arrive, scores 0.571
+F1 there.
+
 Complexity: the online recursion is O(T²) in time and memory (the
 run-length posterior `R` is `(T+1)²` float32); `OnlineChangepointDetector`
 with `max_run_length=K` is O(K) per observation. The offline recursion is

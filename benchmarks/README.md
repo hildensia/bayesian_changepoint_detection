@@ -87,13 +87,63 @@ clone has none; `git fetch --tags`).
 Result files live in [`results/`](results/). The tables in the project
 README come from the file named there.
 
+## Detection quality on real data (TCPD)
+
+`benchmarks/tcpd.py` scores the detectors on the Turing Change Point Dataset
+(van den Burg and Williams, 2020): real series whose changepoints five
+annotators marked independently, with TCPDBench's F1 (margin 5) and
+covering metrics against all annotators (`metrics.py`, ported from
+TCPDBench with its own examples as tests). It follows TCPDBench's protocol
+(standardized series, BOCPD defaults `lambda = 100`, `a = b = k = 1`, and the
+same 500-setting oracle grid) and puts the result next to TCPDBench's
+published BOCPD scores on the same series.
+
+```bash
+python benchmarks/tcpd.py                 # default settings, about 15 s
+python benchmarks/tcpd.py --oracle        # plus the grid, about an hour
+python benchmarks/tcpd.py --report benchmarks/results/2026-09-23-tcpd.json
+```
+
+The 32 series TCPD redistributes are downloaded from a pinned TCPD commit,
+checked against TCPD's checksums and cached in `benchmarks/.cache/`; the
+series themselves are not copied into this repository (several carry their
+own licenses), and the ten that TCPD can only rebuild from third-party
+sources are not used. One series with missing values (`uk_coal_employ`) is
+skipped, as TCPDBench's BOCPD also has no result for it.
+
+Mean over the 30 univariate series with a TCPDBench BOCPD score
+([`results/2026-09-23-tcpd.json`](results/2026-09-23-tcpd.json)):
+
+| method | F1 | cover |
+|---|---|---|
+| no changepoints (TCPDBench's `zero` baseline) | 0.668 | 0.575 |
+| TCPDBench BOCPD (R package `ocp`), default | 0.696 | 0.636 |
+| this library, online, MAP segmentation (`viterbi_changepoints`), default | 0.694 | 0.637 |
+| this library, online, filtered MAP run length (`get_map_changepoints`), default | 0.571 | 0.566 |
+| this library, offline (`StudentT`, `const_prior(1/(n+1))`), default | **0.739** | **0.664** |
+| TCPDBench BOCPD, oracle (best of 500 settings per series) | 0.890 | 0.789 |
+| this library, online, MAP segmentation, oracle | 0.887 | 0.791 |
+
+What this shows:
+
+- The online model agrees with an independent implementation on real data:
+  with TCPDBench's settings its MAP segmentation gives the same F1 as
+  TCPDBench's BOCPD on 27 of the 31 series it scores, and the same averages
+  to within 0.003, with default and with tuned settings.
+- The offline detector, with no tuning, beats default BOCPD on both
+  metrics.
+- The filtered readout, which reports changes as the data arrive, scores
+  below the do-nothing baseline on whole-series segmentation: without
+  hindsight, trends and slow drifts restart the run length repeatedly. For
+  a finished series, use `viterbi_changepoints` or the offline detector.
+
+The oracle rows use the best setting per series and metric, chosen on the
+evaluation data itself, so they are an upper bound, not an achievable score.
+
 ## Reference datasets
 
-Detection quality on real data with human annotations (the Turing Change
-Point Dataset, van den Burg and Williams, 2020, MIT license, five annotators
-per series, F1 and covering metrics) is the planned next step. It will live
-next to this suite and keep the same rule: only measured numbers are
-published.
+TCPD is the reference quality benchmark (above). The synthetic series in
+`performance.py` remain the timing workload and a sanity check.
 
 van den Burg, G. J. J., and Williams, C. K. I. (2020). An evaluation of
 change point detection algorithms. arXiv:2003.06222.

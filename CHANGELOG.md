@@ -8,6 +8,18 @@ All notable changes to this project are documented here. The format follows
 
 ### Added
 
+- `benchmarks/tcpd.py`: detection quality on the Turing Change Point
+  Dataset (van den Burg and Williams, 2020) with TCPDBench's protocol and
+  metrics (F1 with margin 5 and covering, against five annotators;
+  `benchmarks/metrics.py`, ported from TCPDBench and tested against its
+  examples). The series are downloaded from a pinned TCPD commit and
+  checked against TCPD's checksums, not copied into the repository. On the
+  30 univariate series with a published BOCPD score, the online detector's
+  MAP segmentation reproduces TCPDBench's BOCPD (F1 0.694 against 0.696
+  with defaults, 0.887 against 0.890 tuned; identical F1 on 27 of 31
+  series), and the offline detector scores higher untuned (F1 0.739, cover
+  0.664). Results in `benchmarks/results/2026-09-23-tcpd.json`.
+
 - `benchmarks/performance.py`: reproducible timings of the offline, online
   and streaming detectors against the released versions 0.4 (NumPy), 1.0.0
   and 1.1.0 on the same series and parameters, each case in a fresh process,
