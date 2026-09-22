@@ -43,7 +43,29 @@ jobs:
         run: pip install -e . pytest pytest-cov numpy scipy
 
       - name: Run tests
-        run: pytest tests/ -q
+        # Coverage is measured on every version; the run fails if it drops
+        # below the floor. Raise the floor when coverage rises, never lower it
+        # to make a PR pass.
+        run: >-
+          pytest tests/ -q
+          --cov=bayesian_changepoint_detection
+          --cov-report=term-missing
+          --cov-report=xml
+          --cov-fail-under=85
+
+      - name: Publish the coverage table in the job summary
+        if: always() && matrix.python-version == '3.12'
+        run: |
+          echo "## Coverage (Python ${{ matrix.python-version }}, CPU)" >> "$GITHUB_STEP_SUMMARY"
+          python -m coverage report --format=markdown >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload coverage.xml
+        if: always() && matrix.python-version == '3.12'
+        uses: actions/upload-artifact@v7
+        with:
+          name: coverage
+          path: coverage.xml
+          if-no-files-found: ignore
 
   examples:
     # Run every example script headless, from a scratch directory, with the

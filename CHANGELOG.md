@@ -11,6 +11,8 @@ All notable changes to this project are documented here. The format follows
 - The release workflow uploads from the `pypi` GitHub environment (`testpypi`
   for rehearsals), so each upload is listed under "Deployments" on the
   repository page. Nothing about the published package changes.
+- CI measures test coverage on every Python version, fails below 85%, and
+  shows the per-module table in the run summary.
 
 ## [1.1.0] — 2026-09-22
 
