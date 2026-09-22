@@ -39,6 +39,7 @@ nav:
   - API reference:
       - Detectors: api/detectors.md
       - Streaming detector: api/streaming.md
+      - Segment statistics: api/segments.md
       - Online likelihoods: api/online_likelihoods.md
       - Offline likelihoods: api/offline_likelihoods.md
       - Hazard functions: api/hazard_functions.md

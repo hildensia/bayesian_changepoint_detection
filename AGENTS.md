@@ -68,6 +68,7 @@ Two things that surprise people:
 | Path | Contents |
 | --- | --- |
 | `bayesian_changepoint_detection/bayesian_models.py` | Both detection algorithms |
+| `bayesian_changepoint_detection/segments.py` | `segment_statistics`: per-segment summaries and the direction of each change |
 | `bayesian_changepoint_detection/streaming.py` | `OnlineChangepointDetector`, the online recursion one observation at a time |
 | `bayesian_changepoint_detection/offline_likelihoods.py` | Segment likelihoods for the offline algorithm |
 | `bayesian_changepoint_detection/online_likelihoods.py` | Predictive likelihoods for the online algorithm |

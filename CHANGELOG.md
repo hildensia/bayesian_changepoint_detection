@@ -8,6 +8,9 @@ All notable changes to this project are documented here. The format follows
 
 ### Added
 
+- `segment_statistics(data, starts)` and its `SegmentStatistics` result:
+  per-segment mean and standard deviation, and for each changepoint the
+  change in mean (its direction) and a Welch z-score (issue #42).
 - `online_likelihoods.NormalKnownVariance` and
   `offline_likelihoods.NormalKnownVariance` (issue #23): Normal observations
   with a known variance and a conjugate Normal prior on the mean, for mean

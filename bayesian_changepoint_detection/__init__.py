@@ -33,6 +33,7 @@ from .device import ensure_tensor, get_device, get_device_info, to_tensor
 from .hazard_functions import constant_hazard
 from .online_likelihoods import MultivariateT, StudentT
 from .priors import const_prior, geometric_prior, negative_binomial_prior
+from .segments import SegmentStatistics, segment_statistics
 from .streaming import OnlineChangepointDetector
 
 __all__ = [
@@ -47,6 +48,8 @@ __all__ = [
     "compute_run_length_posterior",
     "viterbi_changepoints",
     "OnlineChangepointDetector",
+    "segment_statistics",
+    "SegmentStatistics",
     "constant_hazard",
     "const_prior",
     "geometric_prior",
