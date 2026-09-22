@@ -415,16 +415,19 @@ results, including 1.1.0 and more sizes: [`benchmarks/results/2026-09-22-apple-m
 
 This version finds every change in each of these series (F1 1.00) except
 the streaming one (F1 0.94, 199 changes). In short: the offline detector
-is 4–19x faster than the NumPy original (the gap narrows with length, see
-below) and 35–160x faster than 1.0.0; the online detector runs at the speed
+is 4–19x faster than the NumPy original and 35–160x faster than 1.0.0 (measured
+before the changepoint-table speedup described below); the online detector runs at the speed
 of the NumPy original (both are a Python loop over time), and its
 multivariate model is correct only since 1.1.0.
 
 Complexity: the online recursion is O(T²) in time and memory (the
 run-length posterior `R` is `(T+1)²` float32); `OnlineChangepointDetector`
 with `max_run_length=K` is O(K) per observation. The offline recursion is
-O(T²) (vectorized per start point), but the table of changepoint locations
-`Pcp` is O(T³), which dominates above about 1 000 points; memory is about
+O(T²) (vectorized per start point), and so, in practice, is the table of
+changepoint locations `Pcp`: it is O(J T²) for J rows, and rows stop once
+the probability of that many changepoints drops below `exp(-1000)` (about
+190 rows for a series with three clear changes, whatever its length; up
+to 19x faster than 1.1.0 at 4 000 points); memory is about
 `16 T²` bytes (see [docs/devices.md](https://github.com/hildensia/bayesian_changepoint_detection/blob/master/docs/devices.md#memory)).
 
 Accelerators: see the FAQ; MPS is slower than the CPU on all of these, CUDA

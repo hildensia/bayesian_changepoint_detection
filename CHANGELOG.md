@@ -104,6 +104,16 @@ All notable changes to this project are documented here. The format follows
 
 ### Changed
 
+- The offline changepoint table `Pcp` is up to 19x faster and no longer
+  cubic in practice: the part of each row's sum that does not depend on the
+  changepoint index is built once, and rows stop once the probability of
+  that many changepoints falls below `exp(-1000)` (later rows are left
+  `-inf`; their true values are smaller still, and 0 in float64 either
+  way). Measured on an Apple M1 (CPU): 1 000 points 2.7 s to 0.53 s, 2 000
+  points 20 s to 2.1 s, 4 000 points 158 s to 8.3 s; 5-D `MultivariateT`,
+  2 000 points, 22 s to 3.0 s. Same changepoints in every case; computed
+  entries agree with a direct evaluation of the recursion to 1e-12, and
+  `exp(Pcp)` is unchanged.
 - **The default device is the CPU.** `get_device(None)`, and therefore every
   likelihood, prior, hazard and generator built without `device`, now
   returns the CPU; up to 1.1.0 it picked CUDA, then MPS, when present.

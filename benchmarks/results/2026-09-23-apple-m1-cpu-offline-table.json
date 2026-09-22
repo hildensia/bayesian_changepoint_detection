@@ -1,0 +1,404 @@
+{
+ "environment": {
+  "date": "2026-09-22T23:28:22+00:00",
+  "platform": "macOS-15.7.4-arm64-arm-64bit",
+  "cpu": "Apple M1",
+  "cpu_count": 8,
+  "python": "3.12.11",
+  "numpy": "2.5.3",
+  "torch": "2.14.0",
+  "torch_threads": 4,
+  "device": "cpu",
+  "repeats": 3,
+  "budget_seconds": 400.0,
+  "notes": "Before/after for the offline changepoint-table change: 'current' is branch offline-pcp-faster (c074db0, the library change uncommitted in the working tree at the time, hence -dirty), 'origin/master' is 49daaa3. Suite 'offline' (1-D 500-4000, 5-D 1000-2000), 3 repeats."
+ },
+ "versions": {
+  "current": "v1.1.0-20-g49daaa3-dirty",
+  "origin/master": "49daaa3"
+ },
+ "results": [
+  {
+   "version": "current",
+   "workload": "offline",
+   "dims": 1,
+   "n": 500,
+   "device": "cpu",
+   "repeats": 3,
+   "budget": 400.0,
+   "threads": null,
+   "times": [
+    0.1264240839955164,
+    0.12679720799496863,
+    0.12289295801019762
+   ],
+   "peak_rss_increase_bytes": 37715968,
+   "detected": [
+    250,
+    375
+   ],
+   "truth": [
+    125,
+    250,
+    375
+   ],
+   "precision": 1.0,
+   "recall": 0.6666666666666666,
+   "f1": 0.8,
+   "correct": false,
+   "module_file": "/private/tmp/claude-501/-Users-estcarisimo-postdoc-public-coding-bayesian-changepoint-detection/2d1ebf6a-5493-4efb-9d0c-8a7a8c442e72/scratchpad/wt-pcp/bayesian_changepoint_detection/__init__.py",
+   "torch_threads": 4
+  },
+  {
+   "version": "current",
+   "workload": "offline",
+   "dims": 1,
+   "n": 1000,
+   "device": "cpu",
+   "repeats": 3,
+   "budget": 400.0,
+   "threads": null,
+   "times": [
+    0.5280506660055835,
+    0.5303452500083949,
+    0.5418620000127703
+   ],
+   "peak_rss_increase_bytes": 151879680,
+   "detected": [
+    250,
+    500,
+    750
+   ],
+   "truth": [
+    250,
+    500,
+    750
+   ],
+   "precision": 1.0,
+   "recall": 1.0,
+   "f1": 1.0,
+   "correct": true,
+   "module_file": "/private/tmp/claude-501/-Users-estcarisimo-postdoc-public-coding-bayesian-changepoint-detection/2d1ebf6a-5493-4efb-9d0c-8a7a8c442e72/scratchpad/wt-pcp/bayesian_changepoint_detection/__init__.py",
+   "torch_threads": 4
+  },
+  {
+   "version": "current",
+   "workload": "offline",
+   "dims": 1,
+   "n": 2000,
+   "device": "cpu",
+   "repeats": 3,
+   "budget": 400.0,
+   "threads": null,
+   "times": [
+    2.1004835829953663,
+    2.1334577500092564,
+    2.2399814579985105
+   ],
+   "peak_rss_increase_bytes": 237682688,
+   "detected": [
+    500,
+    1000,
+    1500
+   ],
+   "truth": [
+    500,
+    1000,
+    1500
+   ],
+   "precision": 1.0,
+   "recall": 1.0,
+   "f1": 1.0,
+   "correct": true,
+   "module_file": "/private/tmp/claude-501/-Users-estcarisimo-postdoc-public-coding-bayesian-changepoint-detection/2d1ebf6a-5493-4efb-9d0c-8a7a8c442e72/scratchpad/wt-pcp/bayesian_changepoint_detection/__init__.py",
+   "torch_threads": 4
+  },
+  {
+   "version": "current",
+   "workload": "offline",
+   "dims": 1,
+   "n": 4000,
+   "device": "cpu",
+   "repeats": 3,
+   "budget": 400.0,
+   "threads": null,
+   "times": [
+    8.25846716700471,
+    8.922673084001872,
+    8.26712483400479
+   ],
+   "peak_rss_increase_bytes": 830930944,
+   "detected": [
+    1000,
+    2000,
+    3000
+   ],
+   "truth": [
+    1000,
+    2000,
+    3000
+   ],
+   "precision": 1.0,
+   "recall": 1.0,
+   "f1": 1.0,
+   "correct": true,
+   "module_file": "/private/tmp/claude-501/-Users-estcarisimo-postdoc-public-coding-bayesian-changepoint-detection/2d1ebf6a-5493-4efb-9d0c-8a7a8c442e72/scratchpad/wt-pcp/bayesian_changepoint_detection/__init__.py",
+   "torch_threads": 4
+  },
+  {
+   "version": "origin/master",
+   "workload": "offline",
+   "dims": 1,
+   "n": 500,
+   "device": "cpu",
+   "repeats": 3,
+   "budget": 400.0,
+   "threads": null,
+   "times": [
+    0.3359389580000425,
+    0.3350375419977354,
+    0.33797866699751467
+   ],
+   "peak_rss_increase_bytes": 37371904,
+   "detected": [
+    250,
+    375
+   ],
+   "truth": [
+    125,
+    250,
+    375
+   ],
+   "precision": 1.0,
+   "recall": 0.6666666666666666,
+   "f1": 0.8,
+   "correct": false,
+   "module_file": "/var/folders/_6/l9rt82sj5clf41hkv7173ddm0000gn/T/tmp955qmusl/origin/master/bayesian_changepoint_detection/__init__.py",
+   "torch_threads": 4
+  },
+  {
+   "version": "origin/master",
+   "workload": "offline",
+   "dims": 1,
+   "n": 1000,
+   "device": "cpu",
+   "repeats": 3,
+   "budget": 400.0,
+   "threads": null,
+   "times": [
+    2.6910263340105303,
+    2.604172249994008,
+    2.7279716659977566
+   ],
+   "peak_rss_increase_bytes": 169115648,
+   "detected": [
+    250,
+    500,
+    750
+   ],
+   "truth": [
+    250,
+    500,
+    750
+   ],
+   "precision": 1.0,
+   "recall": 1.0,
+   "f1": 1.0,
+   "correct": true,
+   "module_file": "/var/folders/_6/l9rt82sj5clf41hkv7173ddm0000gn/T/tmp955qmusl/origin/master/bayesian_changepoint_detection/__init__.py",
+   "torch_threads": 4
+  },
+  {
+   "version": "origin/master",
+   "workload": "offline",
+   "dims": 1,
+   "n": 2000,
+   "device": "cpu",
+   "repeats": 3,
+   "budget": 400.0,
+   "threads": null,
+   "times": [
+    19.550083166002878,
+    19.959784625010798,
+    20.263692958003958
+   ],
+   "peak_rss_increase_bytes": 411811840,
+   "detected": [
+    500,
+    1000,
+    1500
+   ],
+   "truth": [
+    500,
+    1000,
+    1500
+   ],
+   "precision": 1.0,
+   "recall": 1.0,
+   "f1": 1.0,
+   "correct": true,
+   "module_file": "/var/folders/_6/l9rt82sj5clf41hkv7173ddm0000gn/T/tmp955qmusl/origin/master/bayesian_changepoint_detection/__init__.py",
+   "torch_threads": 4
+  },
+  {
+   "version": "origin/master",
+   "workload": "offline",
+   "dims": 1,
+   "n": 4000,
+   "device": "cpu",
+   "repeats": 3,
+   "budget": 400.0,
+   "threads": null,
+   "times": [
+    159.94227812498866,
+    158.21786804099975,
+    157.59806479199324
+   ],
+   "peak_rss_increase_bytes": 952958976,
+   "detected": [
+    1000,
+    2000,
+    3000
+   ],
+   "truth": [
+    1000,
+    2000,
+    3000
+   ],
+   "precision": 1.0,
+   "recall": 1.0,
+   "f1": 1.0,
+   "correct": true,
+   "module_file": "/var/folders/_6/l9rt82sj5clf41hkv7173ddm0000gn/T/tmp955qmusl/origin/master/bayesian_changepoint_detection/__init__.py",
+   "torch_threads": 4
+  },
+  {
+   "version": "current",
+   "workload": "offline",
+   "dims": 5,
+   "n": 1000,
+   "device": "cpu",
+   "repeats": 3,
+   "budget": 400.0,
+   "threads": null,
+   "times": [
+    0.8779531659965869,
+    0.9591120409895666,
+    0.9776450420031324
+   ],
+   "peak_rss_increase_bytes": 155123712,
+   "detected": [
+    248,
+    500,
+    750
+   ],
+   "truth": [
+    250,
+    500,
+    750
+   ],
+   "precision": 1.0,
+   "recall": 1.0,
+   "f1": 1.0,
+   "correct": true,
+   "module_file": "/private/tmp/claude-501/-Users-estcarisimo-postdoc-public-coding-bayesian-changepoint-detection/2d1ebf6a-5493-4efb-9d0c-8a7a8c442e72/scratchpad/wt-pcp/bayesian_changepoint_detection/__init__.py",
+   "torch_threads": 4
+  },
+  {
+   "version": "current",
+   "workload": "offline",
+   "dims": 5,
+   "n": 2000,
+   "device": "cpu",
+   "repeats": 3,
+   "budget": 400.0,
+   "threads": null,
+   "times": [
+    3.0312347500002943,
+    3.034844374997192,
+    3.1864526249992196
+   ],
+   "peak_rss_increase_bytes": 243449856,
+   "detected": [
+    500,
+    1000,
+    1500
+   ],
+   "truth": [
+    500,
+    1000,
+    1500
+   ],
+   "precision": 1.0,
+   "recall": 1.0,
+   "f1": 1.0,
+   "correct": true,
+   "module_file": "/private/tmp/claude-501/-Users-estcarisimo-postdoc-public-coding-bayesian-changepoint-detection/2d1ebf6a-5493-4efb-9d0c-8a7a8c442e72/scratchpad/wt-pcp/bayesian_changepoint_detection/__init__.py",
+   "torch_threads": 4
+  },
+  {
+   "version": "origin/master",
+   "workload": "offline",
+   "dims": 5,
+   "n": 1000,
+   "device": "cpu",
+   "repeats": 3,
+   "budget": 400.0,
+   "threads": null,
+   "times": [
+    3.1862586659990484,
+    3.1893952500104206,
+    3.416939917005948
+   ],
+   "peak_rss_increase_bytes": 228982784,
+   "detected": [
+    248,
+    500,
+    750
+   ],
+   "truth": [
+    250,
+    500,
+    750
+   ],
+   "precision": 1.0,
+   "recall": 1.0,
+   "f1": 1.0,
+   "correct": true,
+   "module_file": "/var/folders/_6/l9rt82sj5clf41hkv7173ddm0000gn/T/tmp955qmusl/origin/master/bayesian_changepoint_detection/__init__.py",
+   "torch_threads": 4
+  },
+  {
+   "version": "origin/master",
+   "workload": "offline",
+   "dims": 5,
+   "n": 2000,
+   "device": "cpu",
+   "repeats": 3,
+   "budget": 400.0,
+   "threads": null,
+   "times": [
+    22.13314179200097,
+    21.544215999994776,
+    21.988254292009515
+   ],
+   "peak_rss_increase_bytes": 362168320,
+   "detected": [
+    500,
+    1000,
+    1500
+   ],
+   "truth": [
+    500,
+    1000,
+    1500
+   ],
+   "precision": 1.0,
+   "recall": 1.0,
+   "f1": 1.0,
+   "correct": true,
+   "module_file": "/var/folders/_6/l9rt82sj5clf41hkv7173ddm0000gn/T/tmp955qmusl/origin/master/bayesian_changepoint_detection/__init__.py",
+   "torch_threads": 4
+  }
+ ]
+}

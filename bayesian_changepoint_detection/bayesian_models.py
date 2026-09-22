@@ -15,6 +15,10 @@ from .device import ensure_tensor, get_device
 from .offline_likelihoods import BaseLikelihood as OfflineLikelihood
 from .online_likelihoods import BaseLikelihood as OnlineLikelihood
 
+# Log probabilities below this are 0 in float64 (exp underflows below -745);
+# the offline changepoint table stops at the first row whose mass is lower.
+_NEGLIGIBLE_LOG_MASS = -1000.0
+
 
 def _nan_to_neg_inf(x: torch.Tensor) -> torch.Tensor:
     """Map NaN to -inf while leaving +/-inf untouched.
@@ -116,6 +120,11 @@ def offline_changepoint_detection(
         Log likelihood of segment [t, s] with no changepoints. Shape: [T, T].
     Pcp : torch.Tensor
         Log probability of j-th changepoint at time t. Shape: [T-1, T-1].
+        Row ``j`` sums to the probability that there are more than ``j``
+        changepoints. Once a row's sum falls below ``exp(-1000)``, far under
+        the smallest positive float64, the rows after it are left ``-inf``
+        without being computed: their true values are smaller still, and 0
+        in probability space either way.
 
     Examples
     --------
@@ -136,10 +145,13 @@ def offline_changepoint_detection(
 
     Notes
     -----
-    The backward recursion for ``Q`` and ``P`` takes O(T^2) time and memory;
-    the changepoint table ``Pcp`` takes O(T^3) time (a sum over the previous
-    changepoint for every changepoint index and position), which dominates
-    above about 1 000 points. ``truncate`` does not change either.
+    The backward recursion for ``Q`` and ``P`` takes O(T^2) time and memory.
+    The changepoint table ``Pcp`` takes O(J T^2) time, where ``J`` is the
+    number of rows computed: every row ``j`` holds the probability that
+    there are more than ``j`` changepoints, which can only decrease with
+    ``j``, and the rows after it drops below ``exp(-1000)`` are skipped. ``J``
+    is about the largest plausible number of changepoints plus a margin (for
+    three clear changes, about 190 rows whatever ``T``), and at most ``T - 1``.
 
     Model (Fearnhead 2006, section 2): segment lengths are i.i.d. with mass
     function ``g``, except the last segment, whose length is only known to be
@@ -264,25 +276,27 @@ def offline_changepoint_detection(
     if n > 1:
         Pcp[0, :] = _nan_to_neg_inf(P[0, : n - 1] + Q[1:] + g[1:n] - Q[0])
 
-    # Subsequent changepoints. For each j the sum over the previous
-    # changepoint s = j-1+i (rows) for every t = j+c (columns) is one masked
-    # logsumexp over an [m, m] matrix
-    #   M[i, c] = Pcp[j-1, s] - Q[s+1] + P[s+1, t] + Q[t+1] + g(t - s),
-    # where the segment data[s+1:t+1] has length t - s = c - i + 1 >= 1,
-    # i.e. only i <= c contributes.
+    # Subsequent changepoints. For the j-th, the sum over the previous
+    # changepoint s for every t is
+    #   Pcp[j, t] = logsumexp_s (Pcp[j-1, s] - Q[s+1]) + B[s+1, t],
+    #   B[a, t] = P[a, t] + Q[t+1] + g(t - a + 1)  for a <= t, -inf otherwise,
+    # where data[a:t+1] is the segment between the two changepoints. B does not
+    # depend on j, so it is built once; each row is then one broadcast add and
+    # one logsumexp over the relevant corner of B.
+    if n > 2:
+        index = torch.arange(1, n - 1, device=device)
+        length = (index.unsqueeze(0) - index.unsqueeze(1) + 1).clamp(min=0)
+        B = P[1 : n - 1, 1 : n - 1] + Q[2:].unsqueeze(0) + g[length]
+        del length
+        B.masked_fill_(torch.ones_like(B, dtype=torch.bool).tril(-1), float("-inf"))
     for j in range(1, n - 1):
-        m = n - 1 - j
-        head = Pcp[j - 1, j - 1 : n - 2] - Q[j : n - 1]  # [m], indexed by i
-        rows = torch.arange(m, device=device).unsqueeze(1)
-        cols = torch.arange(m, device=device).unsqueeze(0)
-        length = (cols - rows + 1).clamp(min=0)  # 0 where i > c -> g[0] = -inf
-        M = (
-            head.unsqueeze(1)
-            + P[j : n - 1, j : n - 1]
-            + Q[j + 1 :].unsqueeze(0)
-            + g[length]
-        )
-        M = M.masked_fill(rows > cols, float("-inf"))
+        # Row j-1 holds P(more than j-1 changepoints); once that is below
+        # exp(-1000) every later entry is too, and exp() of all of them is
+        # exactly 0 in float64 (whose smallest positive value is exp(-745)).
+        if bool(torch.logsumexp(Pcp[j - 1], dim=0) < _NEGLIGIBLE_LOG_MASS):
+            break
+        head = Pcp[j - 1, j - 1 : n - 2] - Q[j : n - 1]  # indexed by a = s + 1
+        M = B[j - 1 :, j - 1 :] + head.unsqueeze(1)
         Pcp[j, j:] = _nan_to_neg_inf(torch.logsumexp(M, dim=0))
 
     return Q, P, Pcp
