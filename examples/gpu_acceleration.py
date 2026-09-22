@@ -323,7 +323,8 @@ def main():
     device = get_device()
     device_info = get_device_info()
 
-    print(f"Default device: {device}")
+    print(f"Default device: {device} (accelerators are opt-in)")
+    print(f"device='auto' would pick: {get_device('auto')}")
     print(f"Available devices: {device_info['devices']}")
     print(f"CUDA available: {device_info['cuda_available']}")
     if device_info["cuda_available"]:

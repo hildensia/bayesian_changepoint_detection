@@ -163,6 +163,32 @@ class TestGPUDevice:
         assert tensor.device.type == "mps"
 
 
+@pytest.mark.gpu
+@pytest.mark.skipif(
+    not (hasattr(torch.backends, "mps") and torch.backends.mps.is_available()),
+    reason="MPS not available",
+)
+def test_offline_follows_an_mps_likelihood_back_to_the_cpu():
+    """The offline detector follows the likelihood's device; MPS has no
+    float64, so it warns and runs on the CPU, and the likelihood moves too."""
+    from functools import partial
+
+    from bayesian_changepoint_detection import (
+        const_prior,
+        offline_changepoint_detection,
+        offline_likelihoods,
+    )
+
+    likelihood = offline_likelihoods.StudentT(device="mps")
+    data = torch.cat([torch.zeros(10), torch.ones(10)])
+    with pytest.warns(UserWarning, match="MPS does not support float64"):
+        Q, _, _ = offline_changepoint_detection(
+            data, partial(const_prior, p=1 / 21), likelihood
+        )
+    assert Q.device.type == "cpu"
+    assert likelihood.device.type == "cpu"
+
+
 class TestDefaultDtype:
     """Without ``dtype``, to_tensor keeps float64 precision (off MPS)."""
 

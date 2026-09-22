@@ -589,7 +589,7 @@ def viterbi_changepoints(
     likelihood_model : OnlineLikelihood
         Fresh online likelihood model (it is consumed by this call).
     device : str, torch.device, or None, optional
-        Device to place tensors on.
+        Device to place tensors on; defaults to the likelihood's device.
 
     Returns
     -------

@@ -99,7 +99,8 @@ All notable changes to this project are documented here. The format follows
   `get_device("auto")` keeps the old choice. `offline_changepoint_detection`
   now follows the likelihood's device when `device` is omitted, as the online
   detectors already did, so naming a device once on the likelihood is enough
-  for both. Results are the same; only where they are computed changes. On
+  for both. Only where results are computed changes (CPU and accelerator
+  results agree to float32 rounding, not bit for bit). On
   the hardware measured (Apple M-series), the CPU was 6-30x faster than MPS
   for the online detector, and the offline detector could not use MPS.
   Users who relied on automatic GPU placement should pass `device="auto"`

@@ -38,7 +38,9 @@ def main():
     # Display device information
     device = get_device()
     device_info = get_device_info()
-    print(f"Using device: {device}")
+    print(
+        f"Using device: {device} (the default; device='auto' would pick {get_device('auto')})"
+    )
     print(f"Available devices: {device_info['devices']}")
     print(f"CUDA available: {device_info['cuda_available']}")
     print()
