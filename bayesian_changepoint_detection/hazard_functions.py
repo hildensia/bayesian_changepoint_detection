@@ -27,7 +27,9 @@ def constant_hazard(
     ----------
     lam : float
         The expected run length (higher values = lower changepoint probability).
-        Must be positive.
+        Must be at least 1, because the hazard ``1 / lam`` is a probability.
+        ``lam = 1`` puts a changepoint before every observation; ``inf``
+        gives hazard 0 (no changepoints).
     r : torch.Tensor or int
         Run length tensor or shape specification. If int, creates a tensor
         of that size filled with the constant hazard value.
@@ -38,6 +40,11 @@ def constant_hazard(
     -------
     torch.Tensor
         Tensor of hazard probabilities with the same shape as r.
+
+    Raises
+    ------
+    ValueError
+        If ``lam`` is below 1 or NaN.
 
     Examples
     --------
@@ -57,8 +64,11 @@ def constant_hazard(
     is independent of how long the current segment has been running. This is
     a common choice for modeling changepoints in stationary processes.
     """
-    if lam <= 0:
-        raise ValueError("Lambda must be positive")
+    # `not lam >= 1` rather than `lam < 1` so that NaN is rejected too.
+    if not lam >= 1:
+        raise ValueError(
+            f"lam must be at least 1 (the hazard 1/lam is a probability), got {lam}"
+        )
 
     if isinstance(r, int):
         return torch.full(

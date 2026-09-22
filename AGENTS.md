@@ -109,11 +109,11 @@ contrast, keeps its score table `V` in log space and takes a max where the
 forward pass sums.) Check which
 convention a function uses before editing it.
 
-**Hazard functions return probabilities, and the API does not enforce the
-range.** `constant_hazard(lam, r)` returns `1 / lam` for any positive `lam`,
-so `lam < 1` silently yields a "probability" above 1. Callers must pass
-`lam >= 1`; if you touch this function, add validation rather than relying
-on the docstring.
+**Hazard functions return probabilities.** `constant_hazard(lam, r)` returns
+`1 / lam` and raises `ValueError` for `lam < 1` or NaN (up to 1.1.0 it
+accepted any positive `lam`, so `0 < lam < 1` silently gave a "probability"
+above 1). A new hazard function must validate its output range the same
+way rather than rely on the docstring.
 
 **Numerical precision is load-bearing.** The offline recursion accumulates
 across O(n²) terms. Do not silently downcast. Before #50 the offline
