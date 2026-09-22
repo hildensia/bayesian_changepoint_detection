@@ -20,7 +20,7 @@ multivariate series.
 - 🔭 **Online detection**: the run-length posterior after every observation (Adams & MacKay 2007), for streams and for measuring how quickly a change would have been noticed
 - 🔍 **Offline detection**: the exact posterior probability of a changepoint at every position given the whole series (Fearnhead 2006)
 - 🎯 **Calibrated outputs**: probabilities you can threshold, MAP segment starts, and the single most probable segmentation (`viterbi_changepoints`)
-- 📐 **Conjugate likelihoods**: Student-t predictive for univariate data (unknown mean and variance), multivariate-t for vector data (unknown mean and covariance), independent-features and covariance-only variants, and Gamma-Poisson for counts
+- 📐 **Conjugate likelihoods**: Student-t predictive for univariate data (unknown mean and variance), multivariate-t for vector data (unknown mean and covariance), independent-features and covariance-only variants, Gamma-Poisson for counts, and Normal with known variance for mean changes at a known noise level
 - 🧮 **Verified mathematics**: closed forms checked against `scipy` and against exhaustive enumeration of segmentations; every pinned number in the test suite says where it comes from
 - ⚡ **Vectorized recursions**: both detectors are O(T²) with the inner work on tensors, not Python loops; 1 000 points offline in under 4 s on a laptop CPU
 - 🖥️ **Runs where your tensors are**: CPU, CUDA or Apple MPS through one `device` argument, with measured guidance on when an accelerator is *not* worth it
@@ -233,6 +233,7 @@ and how much memory the tables need: [docs/devices.md](https://github.com/hilden
 | `online_likelihoods.StudentT`, `online_likelihoods.MultivariateT` | online conjugate models (Normal-Gamma, Normal-Wishart) |
 | `offline_likelihoods.StudentT`, `MultivariateT`, `IndependentFeaturesLikelihood`, `FullCovarianceLikelihood` | offline segment marginal likelihoods |
 | `online_likelihoods.Poisson`, `offline_likelihoods.Poisson` | count data: Gamma-Poisson, negative-binomial predictive |
+| `online_likelihoods.NormalKnownVariance`, `offline_likelihoods.NormalKnownVariance` | mean changes with a known noise variance: Normal-Normal, Normal predictive |
 | `get_device`, `get_device_info`, `to_tensor` | device helpers |
 
 All public functions have NumPy-style docstrings with the formulas and the
@@ -496,6 +497,7 @@ counts:
 | online `MultivariateT` | i.i.d. multivariate Normal, unknown mean and covariance (Normal-Wishart) |
 | offline `IndependentFeaturesLikelihood` | one Normal-Gamma model per dimension, independent |
 | offline `MultivariateT` | i.i.d. multivariate Normal, unknown mean and covariance (Normal-Wishart) |
+| online `NormalKnownVariance`, offline `NormalKnownVariance` | i.i.d. Normal with a **known** variance, unknown mean (Normal prior): mean changes only; multivariate offline input is independent dimensions |
 | online `Poisson`, offline `Poisson` | i.i.d. Poisson counts, unknown rate (Gamma prior); multivariate offline input is independent Poisson dimensions |
 | offline `FullCovarianceLikelihood` | multivariate Normal with unknown covariance and **no mean parameter** (mean zero, Xuan & Murphy 2007): it detects covariance changes; segments that differ in mean are misread as scale changes, so use `MultivariateT` when means move |
 

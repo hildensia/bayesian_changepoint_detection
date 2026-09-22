@@ -8,6 +8,13 @@ All notable changes to this project are documented here. The format follows
 
 ### Added
 
+- `online_likelihoods.NormalKnownVariance` and
+  `offline_likelihoods.NormalKnownVariance` (issue #23): Normal observations
+  with a known variance and a conjugate Normal prior on the mean, for mean
+  changes at a known noise level (Murphy 2007, section 2). The offline
+  marginal is checked against `scipy.stats.multivariate_normal` with the
+  joint covariance and against the chain rule; the online predictive against
+  `scipy.stats.norm`.
 - `online_likelihoods.Poisson` and `offline_likelihoods.Poisson` for count
   data (issue #23): Poisson counts with a conjugate Gamma prior on the rate,
   negative-binomial predictive online, closed-form segment marginal offline

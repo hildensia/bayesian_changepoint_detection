@@ -579,3 +579,106 @@ class Poisson(BaseLikelihood):
         prior_beta = torch.tensor([self.beta0], device=self.device, dtype=torch.float32)
         self.alpha = torch.cat([prior_alpha, self.alpha + x])
         self.beta = torch.cat([prior_beta, self.beta + 1.0])
+
+
+class NormalKnownVariance(BaseLikelihood):
+    """
+    Normal likelihood with known variance and a conjugate Normal prior on the
+    mean, for online detection of changes in the mean when the noise level is
+    known.
+
+    For each run length the segment mean has a ``N(mu_r, v_r)`` posterior;
+    the predictive of the next observation is ``N(mu_r, v_r + variance)``,
+    and after observing ``x`` (Murphy, "Conjugate Bayesian analysis of the
+    Gaussian distribution", 2007, section 2):
+
+    ``v' = 1 / (1 / v_r + 1 / variance)``,
+    ``mu' = v' (mu_r / v_r + x / variance)``.
+
+    Parameters
+    ----------
+    variance : float, optional
+        The known observation variance (default 1.0).
+    mu : float, optional
+        Prior mean of the segment mean (default 0.0).
+    prior_variance : float, optional
+        Prior variance of the segment mean (default 1.0).
+    device : str, torch.device, or None, optional
+        Device to place tensors on.
+
+    Examples
+    --------
+    >>> import torch
+    >>> likelihood = NormalKnownVariance(variance=0.25, prior_variance=100.0)
+    >>> log_probs = likelihood.pdf(torch.tensor(0.3))
+    >>> likelihood.update_theta(torch.tensor(0.3))
+    """
+
+    _run_length_state = ("mu", "var")
+
+    def __init__(
+        self,
+        variance: float = 1.0,
+        mu: float = 0.0,
+        prior_variance: float = 1.0,
+        device: Optional[Union[str, torch.device]] = None,
+    ):
+        if not (variance > 0 and prior_variance > 0):
+            raise ValueError(
+                "variance and prior_variance must be positive, got "
+                f"{variance} and {prior_variance}"
+            )
+        super().__init__(device)
+        self.variance = variance
+        self.mu0 = mu
+        self.prior_variance = prior_variance
+        self.mu = torch.tensor([mu], device=self.device, dtype=torch.float32)
+        self.var = torch.tensor(
+            [prior_variance], device=self.device, dtype=torch.float32
+        )
+
+    def pdf(self, data: torch.Tensor) -> torch.Tensor:
+        """
+        Log Normal predictive of one observation for every run length.
+
+        Parameters
+        ----------
+        data : torch.Tensor
+            Scalar observation.
+
+        Returns
+        -------
+        torch.Tensor
+            Log predictive densities, one per current run length.
+        """
+        data = ensure_tensor(data, device=self.device)
+        if data.numel() != 1:
+            raise ValueError("NormalKnownVariance expects scalar input data")
+        x = data.reshape(()).to(torch.float32)
+        self.t += 1
+        predictive_var = self.var + self.variance
+        return -0.5 * (
+            math.log(2.0 * math.pi)
+            + torch.log(predictive_var)
+            + (x - self.mu) ** 2 / predictive_var
+        )
+
+    def update_theta(self, data: torch.Tensor, **kwargs) -> None:
+        """
+        Conjugate update of the mean's posterior for every run length, with
+        the prior prepended for run length 0.
+
+        Parameters
+        ----------
+        data : torch.Tensor
+            The observation just seen.
+        """
+        x = ensure_tensor(data, device=self.device).reshape(()).to(torch.float32)
+        var_new = 1.0 / (1.0 / self.var + 1.0 / self.variance)
+        mu_new = var_new * (self.mu / self.var + x / self.variance)
+        prior_mu = torch.tensor([self.mu0], device=self.device, dtype=torch.float32)
+        prior_var = torch.tensor(
+            [self.prior_variance], device=self.device, dtype=torch.float32
+        )
+        self.mu = torch.cat([prior_mu, mu_new])
+        self.var = torch.cat([prior_var, var_new])

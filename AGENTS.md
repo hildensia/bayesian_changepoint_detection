@@ -82,7 +82,7 @@ Two things that surprise people:
 ## Things that are easy to get wrong
 
 **There are two different classes each named `BaseLikelihood`, `StudentT`,
-`MultivariateT` and `Poisson`.** One of each is in `offline_likelihoods`,
+`MultivariateT`, `Poisson` and `NormalKnownVariance`.** One of each is in `offline_likelihoods`,
 the other in `online_likelihoods`. They are unrelated and their interfaces are
 incompatible. Always import them module-qualified
 (`offline_likelihoods.StudentT`), never bare into a shared namespace.
@@ -200,7 +200,8 @@ and after, and put the numbers in the PR.
   (Gamma-Poisson conjugacy and the negative-binomial predictive, for both
   `Poisson` classes.)
 - Murphy, K. (2007). *Conjugate Bayesian analysis of the Gaussian
-  distribution*. (Normal-Gamma updates for the univariate `StudentT`
+  distribution*. (Normal-Normal updates for both `NormalKnownVariance`
+  classes; Normal-Gamma updates for the univariate `StudentT`
   likelihoods and, per dimension, for `IndependentFeaturesLikelihood`;
   `FullCovarianceLikelihood` and both `MultivariateT` classes use
   Normal-Wishart conjugacy, see Xuan & Murphy above and the docstrings.)

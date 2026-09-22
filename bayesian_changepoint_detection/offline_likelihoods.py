@@ -775,3 +775,127 @@ class Poisson(_CumsumLikelihood):
             return 0.0
         data = self.setup(data)
         return self._log_marginal(t, s)[-1].item()
+
+
+class NormalKnownVariance(_CumsumLikelihood):
+    """
+    Normal likelihood with known variance and a conjugate Normal prior on the
+    mean, for offline detection of changes in the mean when the noise level
+    is known.
+
+    Within a segment ``x_i ~ N(mu, variance)`` i.i.d. with
+    ``mu ~ N(mu0, prior_variance)``. Integrating ``mu`` out, the ``n`` values
+    of a segment are jointly Normal with mean ``mu0`` and covariance
+    ``variance I + prior_variance 1 1^T`` (Murphy, "Conjugate Bayesian
+    analysis of the Gaussian distribution", 2007, section 2), so with
+    ``d_i = x_i - mu0`` and ``c = variance + n prior_variance``:
+
+    ``log p = -n/2 log(2 pi) - (n-1)/2 log(variance) - 1/2 log(c)
+    - (sum d_i^2 - prior_variance (sum d_i)^2 / c) / (2 variance)``.
+
+    Multivariate input is treated as independent dimensions sharing the same
+    hyperparameters, and their log marginals are summed.
+
+    Parameters
+    ----------
+    device : str, torch.device, or None, optional
+        Device to place tensors on.
+    cache_enabled : bool, optional
+        Retained for backward compatibility (see ``BaseLikelihood``).
+    variance : float, optional
+        The known observation variance (default 1.0). Only changes in the
+        mean are modeled; if the true variance differs, variance changes and
+        misfit show up as mean changes.
+    mu0 : float, optional
+        Prior mean of the segment mean (default 0.0).
+    prior_variance : float, optional
+        Prior variance of the segment mean (default 1.0). Make it large
+        compared with the spread of segment means you expect.
+
+    Examples
+    --------
+    >>> import torch
+    >>> likelihood = NormalKnownVariance(variance=0.25, prior_variance=100.0)
+    >>> data = torch.cat([torch.randn(50) * 0.5, torch.randn(50) * 0.5 + 2])
+    >>> log_marginal = likelihood.pdf(data, 0, 50)
+    """
+
+    def __init__(
+        self,
+        device: Optional[Union[str, torch.device]] = None,
+        cache_enabled: bool = True,
+        *,
+        variance: float = 1.0,
+        mu0: float = 0.0,
+        prior_variance: float = 1.0,
+    ):
+        if not (variance > 0 and prior_variance > 0):
+            raise ValueError(
+                "variance and prior_variance must be positive, got "
+                f"{variance} and {prior_variance}"
+            )
+        super().__init__(device, cache_enabled)
+        self.variance = variance
+        self.mu0 = mu0
+        self.prior_variance = prior_variance
+
+    def _compute_stats(self, data: torch.Tensor) -> None:
+        # Prefix sums of the data centered on its mean: the within-segment
+        # scatter below enters the marginal linearly, so computing it from
+        # uncentered sums would lose it to cancellation for data far from 0
+        # (240 nats of error at an offset of 1e8 before this was centered).
+        # One global shift cannot center every segment: with regimes 1e6
+        # noise standard deviations apart the marginals of single-regime
+        # segments are still off by ~2e-3 nats (measured in the review of
+        # #95); such a change is detected regardless.
+        self._shift = data.mean(dim=0)  # [d]
+        super()._compute_stats(data - self._shift)
+
+    def _log_marginal(self, t: int, s_hi: int) -> torch.Tensor:
+        # Centered sums; the shift cancels in the scatter and is added back
+        # to the segment mean.
+        lengths, sum_x, sum_x2 = self._segment_moments(t, s_hi)
+        n = lengths.unsqueeze(-1)  # [m, 1]
+        mean = sum_x / n  # segment mean minus the shift
+        scatter = torch.clamp(sum_x2 - sum_x * mean, min=0.0)
+        c = self.variance + n * self.prior_variance
+        # sum (x - mu0)^2 - prior_variance (sum (x - mu0))^2 / c
+        #   = scatter + n (mean - mu0)^2 variance / c, so
+        # (shift - mu0) first: exact when both are large and close, where
+        # (mean + shift) would round to the grid of the large value.
+        deviation = mean + (self._shift - self.mu0)
+        quadratic = scatter / self.variance + n * deviation**2 / c
+        log_marginal = (
+            -0.5 * n * _LOG_2PI
+            - 0.5 * (n - 1) * math.log(self.variance)
+            - 0.5 * torch.log(c)
+            - 0.5 * quadratic
+        )
+        return log_marginal.sum(dim=-1)
+
+    def pdf_rows(self, data: torch.Tensor, t: int) -> torch.Tensor:
+        data = self.setup(data)
+        return self._log_marginal(t, data.shape[0])
+
+    def pdf(self, data: torch.Tensor, t: int, s: int) -> float:
+        """
+        Log marginal likelihood of ``data[t:s]``.
+
+        Parameters
+        ----------
+        data : torch.Tensor
+            Complete time series.
+        t : int
+            Start index (inclusive).
+        s : int
+            End index (exclusive).
+
+        Returns
+        -------
+        float
+            Log marginal likelihood of the segment.
+        """
+        if s <= t:
+            return 0.0
+        data = self.setup(data)
+        return self._log_marginal(t, s)[-1].item()
