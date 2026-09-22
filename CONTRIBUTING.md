@@ -70,8 +70,9 @@ check the collected count.
 The full suite takes well under a minute on CPU. On CUDA or Apple's MPS it
 can take minutes, because small tensors are slower on an accelerator. The
 default device is the CPU, but tests still pass `device="cpu"` explicitly
-unless they are about device handling, and new tests should do the same. New tests that need a GPU must carry
-`@pytest.mark.gpu` and skip themselves when none is present; one existing
+unless they are about device handling, and new tests should do the same.
+New tests that need a GPU must carry `@pytest.mark.gpu` and skip themselves
+when none is present; one existing
 test, `test_device_consistency` in `tests/test_integration.py`, predates
 the marker and only skips at runtime.
 
