@@ -7,7 +7,7 @@ conjugate Normal-Gamma and Normal-Wishart likelihoods for univariate and
 multivariate series.
 
 [![CI](https://github.com/hildensia/bayesian_changepoint_detection/actions/workflows/ci.yml/badge.svg)](https://github.com/hildensia/bayesian_changepoint_detection/actions/workflows/ci.yml)
-[![PyPI](https://img.shields.io/pypi/v/bayescd.svg)](https://pypi.org/project/bayescd/)
+[![PyPI](https://img.shields.io/pypi/v/bayesian-changepoint.svg)](https://pypi.org/project/bayesian-changepoint/)
 [![Python 3.9+](https://img.shields.io/badge/python-3.9+-blue.svg)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
@@ -26,36 +26,43 @@ multivariate series.
 
 ### Installation
 
-The package is published on PyPI as **`bayescd`** (the name
-`bayesian-changepoint-detection` on PyPI belongs to an unrelated project); the
-import name is `bayesian_changepoint_detection`.
-
-Using [uv](https://docs.astral.sh/uv/) (recommended):
-
 ```bash
-# Install uv if you haven't already
-curl -LsSf https://astral.sh/uv/install.sh | sh
-
-# In your project
-uv add bayescd
+pip install bayesian-changepoint
 ```
 
-Traditional pip installation:
+Using [uv](https://docs.astral.sh/uv/):
 
 ```bash
-pip install bayescd
+uv add bayesian-changepoint
 ```
 
-> **Note:** until version 1.1.0 (the PyTorch rewrite described here) is
-> uploaded, PyPI still serves the 2022 NumPy release 0.4, whose API is
-> different. Install the current code from GitHub instead:
->
-> ```bash
-> pip install "git+https://github.com/hildensia/bayesian_changepoint_detection"
-> ```
+The import name is `bayesian_changepoint_detection`, whatever the
+distribution is called:
+
+```python
+import bayesian_changepoint_detection
+```
 
 To run the examples and notebooks, add the `plot` extra
-(`pip install "bayescd[plot]"`, or `".[plot]"` from a clone).
+(`pip install "bayesian-changepoint[plot]"`, or `".[plot]"` from a clone).
+
+#### Package names
+
+`bayesian-changepoint` is the distribution name from 1.1.0 on. The same
+project was published before as **`bayescd`** (0.4, April 2022) and, earlier,
+as **`bayesian-changepoint-detection`** (0.2.dev1). Both are frozen at those
+releases and neither gets updates; if you have one installed, replace it:
+
+```bash
+pip uninstall bayescd bayesian-changepoint-detection
+pip install bayesian-changepoint
+```
+
+The code is the same project and lives in the same repository; only the name
+on PyPI changed. 1.1.0 is a rewrite on PyTorch relative to 0.4 and changes
+the online API relative to 1.0.x — the
+[CHANGELOG](https://github.com/hildensia/bayesian_changepoint_detection/blob/master/CHANGELOG.md)
+lists every breaking change.
 
 ### System Requirements
 
@@ -134,7 +141,7 @@ print(torch.where(changepoint_probs > 0.5)[0])  # tensor([49, 99])
 
 The two detectors use different index conventions: online reports the first
 point of the new segment (50), offline the last point of the old one (49).
-See the [FAQ](#-faq).
+See the [FAQ](https://github.com/hildensia/bayesian_changepoint_detection/blob/master/README.md#-faq).
 
 ### Multivariate data
 
@@ -167,7 +174,7 @@ and the detector to opt out. On a laptop the CPU is the faster choice for
 the online detector (measured: 6–30x faster than MPS), and the offline
 detector always runs on the CPU under MPS because it needs float64. How the
 argument is resolved, what has been measured, how to time your own workload
-and how much memory the tables need: [docs/devices.md](docs/devices.md).
+and how much memory the tables need: [docs/devices.md](https://github.com/hildensia/bayesian_changepoint_detection/blob/master/docs/devices.md).
 
 ### API at a glance
 
@@ -265,7 +272,7 @@ mypy bayesian_changepoint_detection
 `ruff check` and `ruff format --check` are enforced in CI, together with the
 test suite on Python 3.9–3.13, the example scripts, and a build job that
 installs the wheel into a clean environment. See
-[CONTRIBUTING.md](CONTRIBUTING.md) for the workflow and the review process.
+[CONTRIBUTING.md](https://github.com/hildensia/bayesian_changepoint_detection/blob/master/CONTRIBUTING.md) for the workflow and the review process.
 
 ### Building
 
@@ -319,7 +326,7 @@ Both algorithms are O(T²) in the series length: the offline recursion is
 vectorized per start point (one `pdf_rows` call gives the likelihood of every
 segment starting there), the online recursion over run lengths at each step.
 Memory is also O(T²): the run-length posterior `R` is `(T+1)²` float32, the
-offline tables about `16 T²` bytes (see [docs/devices.md](docs/devices.md#memory)).
+offline tables about `16 T²` bytes (see [docs/devices.md](https://github.com/hildensia/bayesian_changepoint_detection/blob/master/docs/devices.md#memory)).
 
 Measured on an Apple M-series laptop, CPU, 4 threads, PyTorch 2.14:
 
@@ -477,7 +484,7 @@ you have measured otherwise on your hardware; CUDA has not been benchmarked
 
 ## 🤝 Contributing
 
-Contributions are welcome. Please see the [Contributing Guidelines](CONTRIBUTING.md)
+Contributions are welcome. Please see the [Contributing Guidelines](https://github.com/hildensia/bayesian_changepoint_detection/blob/master/CONTRIBUTING.md)
 for the development setup, the conventions (including the rule that a test
 pinning a number says where the number comes from) and the review process.
 
@@ -491,16 +498,16 @@ pinning a number says where the number comes from) and the review process.
 
 | Document | Contents |
 | --- | --- |
-| [CONTRIBUTING.md](CONTRIBUTING.md) | Development setup, conventions, releasing |
-| [CHANGELOG.md](CHANGELOG.md) | Release history, including the numerical changes in 1.1.0 |
-| [AGENTS.md](AGENTS.md) | Conventions for AI coding agents: the two `StudentT`s, index conventions, changing the math |
-| [SECURITY.md](SECURITY.md) | How to report a vulnerability |
-| [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md) | Community standards |
-| [docs/devices.md](docs/devices.md) | CPU, CUDA and MPS: device resolution, measurements, memory |
+| [CONTRIBUTING.md](https://github.com/hildensia/bayesian_changepoint_detection/blob/master/CONTRIBUTING.md) | Development setup, conventions, releasing |
+| [CHANGELOG.md](https://github.com/hildensia/bayesian_changepoint_detection/blob/master/CHANGELOG.md) | Release history, including the numerical changes in 1.1.0 |
+| [AGENTS.md](https://github.com/hildensia/bayesian_changepoint_detection/blob/master/AGENTS.md) | Conventions for AI coding agents: the two `StudentT`s, index conventions, changing the math |
+| [SECURITY.md](https://github.com/hildensia/bayesian_changepoint_detection/blob/master/SECURITY.md) | How to report a vulnerability |
+| [CODE_OF_CONDUCT.md](https://github.com/hildensia/bayesian_changepoint_detection/blob/master/CODE_OF_CONDUCT.md) | Community standards |
+| [docs/devices.md](https://github.com/hildensia/bayesian_changepoint_detection/blob/master/docs/devices.md) | CPU, CUDA and MPS: device resolution, measurements, memory |
 
 ## 📄 License
 
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+This project is licensed under the MIT License - see the [LICENSE](https://github.com/hildensia/bayesian_changepoint_detection/blob/master/LICENSE) file for details.
 
 ## 🔗 Related Resources
 
@@ -511,13 +518,13 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ## 🙏 Acknowledgements
 
-- **Johannes Kulick** wrote the original NumPy implementation (2014–2022) and publishes the `bayescd` package.
+- **Johannes Kulick** wrote the original NumPy implementation (2014–2022), published as `bayesian-changepoint-detection` and then `bayescd`, and owns this repository.
 - **Esteban Carisimo** did the PyTorch rewrite, the vectorized recursions, the verified likelihoods and the current maintenance.
 
 ### Citation
 
 If you use this library in your research, please cite it (GitHub's "Cite
-this repository" button reads [CITATION.cff](CITATION.cff)):
+this repository" button reads [CITATION.cff](https://github.com/hildensia/bayesian_changepoint_detection/blob/master/CITATION.cff)):
 
 ```bibtex
 @software{bayesian_changepoint_detection,

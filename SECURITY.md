@@ -3,8 +3,9 @@
 ## Supported versions
 
 Security fixes go into the current development line on `master` and into the
-next release. Older tags and the pre-PyTorch releases (0.x, published to PyPI
-as `bayescd` up to 0.4) are not maintained.
+next release. The distribution is `bayesian-changepoint` from 1.1.0 on. Older
+tags and the pre-PyTorch releases (0.x, published to PyPI as `bayescd` up to
+0.4 and as `bayesian-changepoint-detection` before that) are not maintained.
 
 ## Reporting a vulnerability
 

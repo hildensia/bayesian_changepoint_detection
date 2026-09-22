@@ -75,7 +75,8 @@ jobs:
   build:
     # Build the sdist and wheel, check their metadata, then install the wheel
     # into a clean environment (no repository checkout on sys.path) and run
-    # the two detectors once. This is what a `pip install bayescd` user gets.
+    # the two detectors once. This is what a `pip install bayesian-changepoint`
+    # user gets.
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
@@ -107,7 +108,7 @@ jobs:
           )
           from bayesian_changepoint_detection.offline_likelihoods import StudentT as OfflineStudentT
 
-          print("bayescd", bcd.__version__)
+          print("bayesian-changepoint", bcd.__version__)
           torch.manual_seed(0)
           data = torch.cat([torch.randn(40), torch.randn(40) + 5])
           R, _ = online_changepoint_detection(
