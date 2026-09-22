@@ -18,9 +18,9 @@ from scipy.stats import nbinom
 
 from bayesian_changepoint_detection import (
     OnlineChangepointDetector,
+    changepoint_probabilities,
     const_prior,
     constant_hazard,
-    get_map_changepoints,
     offline_changepoint_detection,
     offline_likelihoods,
     online_changepoint_detection,
@@ -87,33 +87,50 @@ def test_offline_multivariate_sums_independent_dimensions():
     assert model.pdf(counts, 4, 17) == pytest.approx(expected, abs=1e-9)
 
 
+def found_exactly(found, true, tolerance=3):
+    return len(found) == len(true) and all(
+        abs(a - b) <= tolerance for a, b in zip(found, true)
+    )
+
+
+# Detection is checked as a rate over 20 draws rather than on one lucky
+# seed: rate 2 -> 9 -> 2, 60 points per segment. Measured when written:
+# online (lag-10 probability > 0.5) 19/20, offline 20/20. The MAP-path rule
+# (get_map_changepoints) is not used: it adds a spurious start on about a
+# quarter of the draws, the known twitchiness of that rule.
+SEEDS = range(20)
+
+
 @pytest.mark.behavior
 def test_online_detects_rate_changes():
-    counts = rate_change(2)
-    R, _ = online_changepoint_detection(
-        counts,
-        partial(constant_hazard, 100, device="cpu"),
-        online_likelihoods.Poisson(alpha=1.0, beta=0.1, device="cpu"),
-        device="cpu",
-    )
-    starts = get_map_changepoints(R, min_separation=10).tolist()
-    assert len(starts) == 2
-    assert abs(starts[0] - 60) <= 3 and abs(starts[1] - 120) <= 3
+    hits = 0
+    for seed in SEEDS:
+        R, _ = online_changepoint_detection(
+            rate_change(seed),
+            partial(constant_hazard, 100, device="cpu"),
+            online_likelihoods.Poisson(alpha=1.0, beta=0.1, device="cpu"),
+            device="cpu",
+        )
+        probs = changepoint_probabilities(R, lag=10)
+        found = (torch.where(probs[1:] > 0.5)[0] + 1).tolist()
+        hits += found_exactly(found, [60, 120])
+    assert hits >= 18
 
 
 @pytest.mark.behavior
 def test_offline_detects_rate_changes():
-    counts = rate_change(3)
-    _, _, log_pcp = offline_changepoint_detection(
-        counts,
-        partial(const_prior, p=1 / (len(counts) + 1)),
-        offline_likelihoods.Poisson(device="cpu", alpha0=1.0, beta0=0.1),
-        device="cpu",
-    )
-    probs = torch.exp(log_pcp).sum(0)
-    peaks = torch.where(probs > 0.5)[0].tolist()
-    assert len(peaks) == 2
-    assert abs(peaks[0] - 59) <= 3 and abs(peaks[1] - 119) <= 3
+    hits = 0
+    for seed in SEEDS:
+        counts = rate_change(seed)
+        _, _, log_pcp = offline_changepoint_detection(
+            counts,
+            partial(const_prior, p=1 / (len(counts) + 1)),
+            offline_likelihoods.Poisson(device="cpu", alpha0=1.0, beta0=0.1),
+            device="cpu",
+        )
+        found = torch.where(torch.exp(log_pcp).sum(0) > 0.5)[0].tolist()
+        hits += found_exactly(found, [59, 119])
+    assert hits >= 19
 
 
 @pytest.mark.behavior
