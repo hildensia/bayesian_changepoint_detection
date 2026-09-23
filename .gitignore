@@ -136,3 +136,6 @@ EOF < /dev/null
 
 # Figures written by the example scripts into the working directory
 /*.png
+
+# Downloaded benchmark data (benchmarks/tcpd.py)
+benchmarks/.cache/

@@ -78,7 +78,7 @@ Two things that surprise people:
 | `bayesian_changepoint_detection/device.py` | Device selection and tensor coercion |
 | `bayesian_changepoint_detection/generate_data.py` | Synthetic series for tests and examples |
 | `tests/` | Test suite |
-| `benchmarks/` | Timings across released versions (`performance.py`, protocol in its README); results in `benchmarks/results/` |
+| `benchmarks/` | Timings across released versions (`performance.py`) and detection quality on TCPD (`tcpd.py`); protocols in its README, results in `benchmarks/results/` |
 | `examples/` | Runnable scripts and notebooks |
 | `docs/`, `mkdocs.yml` | Documentation site; most pages include `README.md` sections through `<!-- --8<-- [start:name] -->` markers, so keep those markers intact |
 
