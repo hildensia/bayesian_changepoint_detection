@@ -398,28 +398,30 @@ several lengths), and the notebooks `Example_Code.ipynb` and
 <!-- --8<-- [start:performance] -->
 
 Measured with [`benchmarks/performance.py`](https://github.com/hildensia/bayesian_changepoint_detection/blob/master/benchmarks/README.md), which runs the
-same series and parameters against this version, the first PyTorch release
-(1.0.0) and the original NumPy implementation (0.4), each in a fresh process,
-and scores every run against the true changepoints (F1, margin 5). Apple M1,
-CPU, 4 threads, PyTorch 2.14, Python 3.12; median of up to five runs. Raw
-results, including 1.1.0 and more sizes: [`benchmarks/results/2026-09-22-apple-m1-cpu.json`](https://github.com/hildensia/bayesian_changepoint_detection/blob/master/benchmarks/results/2026-09-22-apple-m1-cpu.json).
+same series and parameters against this version, the previous release
+(1.1.0), the first PyTorch release (1.0.0) and the original NumPy
+implementation (0.4), each in a fresh process, and scores every run against
+the true changepoints (F1, margin 5). Apple M1, CPU, 4 threads, PyTorch 2.14,
+Python 3.12; median of up to five runs. Raw results, with more sizes:
+[`benchmarks/results/2026-09-23-apple-m1-cpu.json`](https://github.com/hildensia/bayesian_changepoint_detection/blob/master/benchmarks/results/2026-09-23-apple-m1-cpu.json).
 
-| Workload | this version | 0.4 (NumPy) | 1.0.0 (PyTorch) |
-|---|---|---|---|
-| Offline `StudentT`, 1 000 points | 3.1 s | 24 s | 108 s, misses changes (F1 0.50) |
-| Offline `StudentT`, 2 000 points | 23 s | 101 s | not run (predicted 426 s) |
-| Offline `MultivariateT`, 5-D, 1 000 points | 3.5 s | not available | 30 s |
-| Online `StudentT`, 1 000 points | 0.16 s | 0.12 s | 39 s |
-| Online `StudentT`, 5 000 points | 1.7 s | 2.0 s | not run (predicted 825 s) |
-| Online `MultivariateT`, 5-D, 1 000 points | 0.41 s | crashes (`NameError`) | 51 s, wrong (F1 0.04) |
-| `OnlineChangepointDetector`, 50 000 points, `max_run_length=1000` | 9.1 s (180 µs per point) | not available | not available |
+| Workload | 1.2.0 | 1.1.0 | 0.4 (NumPy) | 1.0.0 (PyTorch) |
+|---|---|---|---|---|
+| Offline `StudentT`, 1 000 points | 0.53 s | 3.1 s | 24 s | 108 s, misses changes (F1 0.50) |
+| Offline `StudentT`, 2 000 points | 2.0 s | 24 s | 101 s | not run (predicted 426 s) |
+| Offline `MultivariateT`, 5-D, 1 000 points | 0.94 s | 3.4 s | not available | 30 s |
+| Online `StudentT`, 1 000 points | 0.16 s | 0.13 s | 0.12 s | 39 s |
+| Online `StudentT`, 5 000 points | 1.9 s | 1.8 s | 2.0 s | not run (predicted 825 s) |
+| Online `MultivariateT`, 5-D, 1 000 points | 0.40 s | 0.37 s | crashes (`NameError`) | 51 s, wrong (F1 0.04) |
+| `OnlineChangepointDetector`, 50 000 points, `max_run_length=1000` | 7.9 s (160 µs per point) | not available | not available | not available |
 
-This version finds every change in each of these series (F1 1.00) except
-the streaming one (F1 0.94, 199 changes). In short: the offline detector
-is 4–19x faster than the NumPy original and 35–160x faster than 1.0.0 (measured
-before the changepoint-table speedup described below); the online detector runs at the speed
-of the NumPy original (both are a Python loop over time), and its
-multivariate model is correct only since 1.1.0.
+1.2.0 finds every change in each of these series (F1 1.00) except the
+streaming one (F1 0.94, 199 changes). In short: the offline detector is
+31–51x faster than the NumPy original, 206–360x faster than 1.0.0 (which
+also misses changes) and faster than 1.1.0 by a factor that grows with
+length (1.5x at 250 points, 6x at 1 000, 12x at 2 000); the online detector runs
+at the speed of the NumPy original (both are a Python loop over time), and
+its multivariate model is correct only since 1.1.0.
 
 Detection quality on real data, measured with [`benchmarks/tcpd.py`](https://github.com/hildensia/bayesian_changepoint_detection/blob/master/benchmarks/README.md#detection-quality-on-real-data-tcpd)
 on the Turing Change Point Dataset (van den Burg and Williams, 2020; 30
@@ -436,10 +438,10 @@ better):
 The online model reproduces the published BOCPD (identical F1 on 27 of the
 31 series both score, which add the 2-D `run_log` to these 30; also with
 tuned settings, 0.887 against 0.890); the offline
-detector beats it without tuning. For a finished series, read the online
-posterior with `viterbi_changepoints` or use the offline detector:
-`get_map_changepoints`, which reports changes as data arrive, scores 0.571
-F1 there.
+detector beats it without tuning. For a finished series, use the offline
+detector, or read the online posterior with `viterbi_changepoints`. The
+online readout `get_map_changepoints` reports changes as data arrive,
+without hindsight, and scores 0.571 F1 on the same series.
 
 Complexity: the online recursion is O(T²) in time and memory (the
 run-length posterior `R` is `(T+1)²` float32); `OnlineChangepointDetector`
@@ -637,7 +639,7 @@ pinning a number says where the number comes from) and the review process.
 | --- | --- |
 | [Documentation site](https://estcarisimo.github.io/bayesian_changepoint_detection/) | Usage, devices, FAQ and the API reference, built from `master` |
 | [CONTRIBUTING.md](https://github.com/hildensia/bayesian_changepoint_detection/blob/master/CONTRIBUTING.md) | Development setup, conventions, releasing |
-| [CHANGELOG.md](https://github.com/hildensia/bayesian_changepoint_detection/blob/master/CHANGELOG.md) | Release history, including the numerical changes in 1.1.0 |
+| [CHANGELOG.md](https://github.com/hildensia/bayesian_changepoint_detection/blob/master/CHANGELOG.md) | Release history, including the numerical changes in each release |
 | [AGENTS.md](https://github.com/hildensia/bayesian_changepoint_detection/blob/master/AGENTS.md) | Conventions for AI coding agents: the two `StudentT`s, index conventions, changing the math |
 | [SECURITY.md](https://github.com/hildensia/bayesian_changepoint_detection/blob/master/SECURITY.md) | How to report a vulnerability |
 | [CODE_OF_CONDUCT.md](https://github.com/hildensia/bayesian_changepoint_detection/blob/master/CODE_OF_CONDUCT.md) | Community standards |
@@ -674,7 +676,7 @@ this repository" button reads [CITATION.cff](https://github.com/hildensia/bayesi
   author  = {Kulick, Johannes and Carisimo, Esteban},
   url     = {https://github.com/hildensia/bayesian_changepoint_detection},
   year    = {2026},
-  version = {1.1.0}
+  version = {1.2.0}
 }
 ```
 

@@ -6,6 +6,8 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+## [1.2.0] — 2026-09-23
+
 ### Added
 
 - `benchmarks/tcpd.py`: detection quality on the Turing Change Point
@@ -25,7 +27,8 @@ All notable changes to this project are documented here. The format follows
   and 1.1.0 on the same series and parameters, each case in a fresh process,
   with every run scored against the true changepoints. Protocol in
   `benchmarks/README.md`; the README's performance table comes from
-  `benchmarks/results/2026-09-22-apple-m1-cpu.json`. It showed that 1.0.0's
+  `benchmarks/results/2026-09-23-apple-m1-cpu.json` (1.2.0 re-measured; the
+  older versions from `2026-09-22-apple-m1-cpu.json`). It showed that 1.0.0's
   multivariate online detector misses almost every change (F1 0.04), that
   0.4's multivariate online detector crashes, and that the offline changepoint table is O(T³). CI runs
   the quick suite on the current code so the harness cannot rot.
