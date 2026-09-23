@@ -92,6 +92,9 @@ jobs:
             python "$GITHUB_WORKSPACE/examples/$script.py"
             echo "::endgroup::"
           done
+          echo "::group::notebooks"
+          python "$GITHUB_WORKSPACE/examples/run_notebooks.py"
+          echo "::endgroup::"
           # The benchmark harness, on the current code only, so it cannot rot.
           # Timings from shared runners are not published.
           echo "::group::benchmarks (quick suite)"
