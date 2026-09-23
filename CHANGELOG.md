@@ -16,8 +16,8 @@ All notable changes to this project are documented here. The format follows
   checked against TCPD's checksums, not copied into the repository. On the
   30 univariate series with a published BOCPD score, the online detector's
   MAP segmentation reproduces TCPDBench's BOCPD (F1 0.694 against 0.696
-  with defaults, 0.887 against 0.890 tuned; identical F1 on 27 of 31
-  series), and the offline detector scores higher untuned (F1 0.739, cover
+  with defaults, 0.887 against 0.890 tuned; identical F1 on 27 of the 31
+  series both score, which add the 2-D `run_log`), and the offline detector scores higher untuned (F1 0.739, cover
   0.664). Results in `benchmarks/results/2026-09-23-tcpd.json`.
 
 - `benchmarks/performance.py`: reproducible timings of the offline, online

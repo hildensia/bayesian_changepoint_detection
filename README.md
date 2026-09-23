@@ -432,8 +432,9 @@ better):
 | This library, online, `viterbi_changepoints` | 0.694 | 0.637 |
 | This library, offline | **0.739** | **0.664** |
 
-The online model reproduces the published BOCPD (identical F1 on 27 of 31
-series; also with tuned settings, 0.887 against 0.890); the offline
+The online model reproduces the published BOCPD (identical F1 on 27 of the
+31 series both score, which add the 2-D `run_log` to these 30; also with
+tuned settings, 0.887 against 0.890); the offline
 detector beats it without tuning. For a finished series, read the online
 posterior with `viterbi_changepoints` or use the offline detector:
 `get_map_changepoints`, which reports changes as data arrive, scores 0.571

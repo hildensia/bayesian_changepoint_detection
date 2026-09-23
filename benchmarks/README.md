@@ -127,9 +127,10 @@ Mean over the 30 univariate series with a TCPDBench BOCPD score
 What this shows:
 
 - The online model agrees with an independent implementation on real data:
-  with TCPDBench's settings its MAP segmentation gives the same F1 as
-  TCPDBench's BOCPD on 27 of the 31 series it scores, and the same averages
-  to within 0.003, with default and with tuned settings.
+  with TCPDBench's default settings its MAP segmentation gives the same F1
+  as TCPDBench's BOCPD on 27 of the 31 series both score (the 30 in the
+  table plus the 2-D `run_log`), and the table's averages differ by at most
+  0.003 (0.0030 for the tuned F1), with default and with tuned settings.
 - The offline detector, with no tuning, beats default BOCPD on both
   metrics.
 - The filtered readout, which reports changes as the data arrive, scores

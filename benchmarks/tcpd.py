@@ -41,6 +41,8 @@ licenses. Protocol, following TCPDBench:
 - multivariate series use ``MultivariateT(dims=d)`` with its default prior
   (the oracle varies only the hazard for them: alpha, beta and kappa are
   univariate parameters);
+- as in TCPDBench, reported locations 0 and past ``n - 2`` are dropped
+  before scoring (none of this library's readouts produced one here);
 - series with missing values are skipped (TCPDBench's BOCPD also has no
   result for them).
 """
@@ -187,6 +189,9 @@ def offline_cps(data):
 
 
 def _scores(annotations, cps, n_obs):
+    # As TCPDBench's summarize.py does: locations 0 and past n_obs - 2 are
+    # not changepoints (some methods report them by default).
+    cps = [c for c in cps if 0 < c <= n_obs - 2]
     return {
         "f1": f_measure(annotations, cps),
         "cover": covering(annotations, cps, n_obs),
