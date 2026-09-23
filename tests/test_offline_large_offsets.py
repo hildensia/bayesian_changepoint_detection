@@ -6,7 +6,9 @@ rational sufficient statistics (``tests/_exact_marginals.py``) at data
 offsets up to 1e10, with the prior mean at 0 and at the data. Before the
 prefix sums were centered, the errors at an offset of 1e8 were 44 nats
 (StudentT, prior mean at the data), 17 (MultivariateT), 16
-(FullCovariance) and 1.6 (IndependentFeatures).
+(FullCovariance) and 1.6 (IndependentFeatures). ``NormalKnownVariance``
+meets the same bound; ``Poisson`` is checked against 60-digit arithmetic
+with a bound set by the float64 rounding of its lgamma terms (see its test).
 """
 
 import pytest
@@ -73,6 +75,36 @@ def test_full_covariance(offset):
     model = off.FullCovarianceLikelihood(device="cpu")
     for t, s in SEGMENTS:
         assert_close(model.pdf(data, t, s), exact.full_covariance(data[t:s].tolist()))
+
+
+@pytest.mark.parametrize("offset", OFFSETS)
+@pytest.mark.parametrize("prior_at_data", [False, True], ids=["mu0=0", "mu0=data"])
+def test_normal_known_variance(offset, prior_at_data):
+    data = series(offset, seed=6)
+    mu0 = offset if prior_at_data else 0.0
+    model = off.NormalKnownVariance(device="cpu", mu0=mu0)
+    for t, s in SEGMENTS:
+        expected = exact.normal_known_variance(data[t:s].tolist(), 1.0, mu0, 1.0)
+        assert_close(model.pdf(data, t, s), expected)
+        assert_close(model.pdf_rows(data, t)[s - t - 1].item(), expected)
+
+
+@pytest.mark.parametrize("offset", [0.0, *OFFSETS])
+def test_poisson(offset):
+    # Counts near the offset. The log marginal is a difference of lgamma
+    # terms of size ~S log S (S the segment total, up to 6e11 here), so the
+    # float64 formula carries their rounding: measured 5e-12 relative
+    # (7e-3 nats on a log marginal of -1e9 at counts of 1e10), far below any
+    # evidence difference between segmentations. The bound is set there,
+    # ten times looser than for the Normal models, whose cancellation the
+    # centered prefix sums remove.
+    gen = torch.Generator().manual_seed(7)
+    counts = torch.poisson(torch.full((60,), 5.0), generator=gen).double() + offset
+    model = off.Poisson(alpha0=1.0, beta0=0.1, device="cpu")
+    for t, s in SEGMENTS:
+        expected = exact.poisson(counts[t:s].tolist(), 1.0, 0.1)
+        value = model.pdf(counts, t, s)
+        assert abs(value - expected) <= 1e-11 * max(1.0, abs(expected))
 
 
 def test_per_dimension_offsets():
