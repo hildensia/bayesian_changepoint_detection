@@ -166,7 +166,7 @@ def poisson(counts, alpha0, beta0):
     """Poisson counts, Gamma(alpha0, beta0) prior on the rate (Gelman et al.,
     BDA3, section 2.6), in 60-digit arithmetic: the ``lgamma`` terms of large
     counts cancel, so float64 cannot serve as a reference for them."""
-    import mpmath  # installed with torch (through sympy)
+    import mpmath  # in the dev extra (and installed with torch through sympy)
 
     with mpmath.workdps(60):
         total = sum(int(x) for x in counts)
