@@ -46,6 +46,7 @@ dev = [
     "pytest-cov>=4.0.0",
     "numpy>=1.21.0",
     "scipy>=1.7.0",
+    "mpmath>=1.1.0",  # high-precision reference in tests/_exact_marginals.py
     "ruff>=0.6",
     "pre-commit>=3.0",
     "mypy>=1.0.0",

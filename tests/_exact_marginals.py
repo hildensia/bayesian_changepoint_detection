@@ -146,3 +146,36 @@ def multivariate_t(segment, kappa0, dof0, mu0, psi0):
         + d / 2 * (math.log(kappa0) - _log_fraction(kappa_n))
         - n * d / 2 * LOG_PI
     )
+
+
+def normal_known_variance(segment, variance, mu0, prior_variance):
+    """Normal data with known variance, Normal prior on the mean (Murphy
+    2007, section 2): the marginal of ``n`` values is Normal with covariance
+    ``variance I + prior_variance 1 1^T``. The quadratic form, which holds
+    all the cancellation, is exact; only the log terms round."""
+    n = len(segment)
+    d = [Fraction(x) - Fraction(mu0) for x in segment]
+    s1, s2 = sum(d), sum(x * x for x in d)
+    c = Fraction(variance) + n * Fraction(prior_variance)
+    quad = (s2 - Fraction(prior_variance) * s1 * s1 / c) / (2 * Fraction(variance))
+    logs = -n / 2 * LOG_2PI - (n - 1) / 2 * math.log(variance) - _log(c) / 2
+    return logs - float(quad)
+
+
+def poisson(counts, alpha0, beta0):
+    """Poisson counts, Gamma(alpha0, beta0) prior on the rate (Gelman et al.,
+    BDA3, section 2.6), in 60-digit arithmetic: the ``lgamma`` terms of large
+    counts cancel, so float64 cannot serve as a reference for them."""
+    import mpmath  # in the dev extra (and installed with torch through sympy)
+
+    with mpmath.workdps(60):
+        total = sum(int(x) for x in counts)
+        n = len(counts)
+        value = (
+            mpmath.loggamma(alpha0 + total)
+            - mpmath.loggamma(alpha0)
+            + alpha0 * mpmath.log(beta0)
+            - (alpha0 + total) * mpmath.log(beta0 + n)
+            - sum(mpmath.loggamma(int(x) + 1) for x in counts)
+        )
+        return float(value)
