@@ -417,7 +417,7 @@ Python 3.12; median of up to five runs. Raw results, with more sizes:
 
 1.2.0 finds every change in each of these series (F1 1.00) except the
 streaming one (F1 0.94, 199 changes). In short: the offline detector is
-31–51x faster than the NumPy original, 205–360x faster than 1.0.0 (which
+31–51x faster than the NumPy original, 206–360x faster than 1.0.0 (which
 also misses changes) and faster than 1.1.0 by a factor that grows with
 length (1.5x at 250 points, 6x at 1 000, 12x at 2 000); the online detector runs
 at the speed of the NumPy original (both are a Python loop over time), and
@@ -438,10 +438,10 @@ better):
 The online model reproduces the published BOCPD (identical F1 on 27 of the
 31 series both score, which add the 2-D `run_log` to these 30; also with
 tuned settings, 0.887 against 0.890); the offline
-detector beats it without tuning. For a finished series, read the online
-posterior with `viterbi_changepoints` or use the offline detector:
-`get_map_changepoints`, which reports changes as data arrive, scores 0.571
-F1 there.
+detector beats it without tuning. For a finished series, use the offline
+detector, or read the online posterior with `viterbi_changepoints`. The
+online readout `get_map_changepoints` reports changes as data arrive,
+without hindsight, and scores 0.571 F1 on the same series.
 
 Complexity: the online recursion is O(T²) in time and memory (the
 run-length posterior `R` is `(T+1)²` float32); `OnlineChangepointDetector`

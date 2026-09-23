@@ -175,7 +175,10 @@ repository owner.
    package metadata. Bump it there.
 2. Move the `[Unreleased]` section of `CHANGELOG.md` under a new
    `[X.Y.Z] — YYYY-MM-DD` heading.
-3. Open a PR with those two changes and merge it.
+3. Update `version` and `date-released` in `CITATION.cff` and the version in
+   the README's BibTeX entry, and re-measure the README performance table
+   (`benchmarks/performance.py --versions current`, see
+   `benchmarks/README.md`). Open a PR with these changes and merge it.
 4. Optionally rehearse: run the `CD` workflow manually
    (`gh workflow run cd.yml -f target=testpypi`) to build and upload to
    TestPyPI, and install the result in a clean environment.

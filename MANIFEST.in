@@ -1,0 +1,7 @@
+# The sdist carries the test suite with its helper modules and the files the
+# tests read (README code blocks, docs pages, the benchmark metrics), so
+# `pytest` runs from an unpacked sdist. The wheel contains only the package.
+graft tests
+graft docs
+include benchmarks/metrics.py
+global-exclude __pycache__ *.py[cod]
