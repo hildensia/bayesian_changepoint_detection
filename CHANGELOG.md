@@ -69,6 +69,12 @@ All notable changes to this project are documented here. The format follows
 
 ### Fixed
 
+- The example notebooks run again: `Multivariate_Example.ipynb` imported
+  `IndepentFeaturesLikelihood` (a typo for `IndependentFeaturesLikelihood`)
+  and applied NumPy functions to tensors; both passed the deprecated
+  `truncate`, and `Example_Code.ipynb` still recommended it for speed. Their
+  stored outputs (from much older versions) are cleared. CI now runs their
+  code cells (`examples/run_notebooks.py`).
 - `to_tensor` / `ensure_tensor` keep float64 precision when no `dtype` is
   given: float64 NumPy arrays, Python floats and float64 tensors stay
   float64 (float32 on MPS); integer and boolean input still becomes

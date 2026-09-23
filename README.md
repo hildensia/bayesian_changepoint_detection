@@ -281,7 +281,7 @@ bayesian_changepoint_detection/
 ```
 
 Supporting directories: `tests/` (the suite, see below), `examples/` (scripts
-and two notebooks, run in CI), `docs/` (pages whose code blocks are executed
+and two notebooks, all run in CI), `docs/` (pages whose code blocks are executed
 by the tests), `benchmarks/` (timings across released versions, see
 Performance).
 
@@ -391,7 +391,8 @@ Other scripts in `examples/`: `basic_usage.py` (400 points, four segments,
 both detectors), `multivariate_example.py`, `gpu_acceleration.py` (device
 selection and CPU/GPU comparison), `benchmark_offline.py` (offline timing at
 several lengths), and the notebooks `Example_Code.ipynb` and
-`Multivariate_Example.ipynb`. The scripts run in CI on every push.
+`Multivariate_Example.ipynb`. The scripts, and the notebooks' code cells
+(`examples/run_notebooks.py`), run in CI on every push.
 
 ## ⚡ Performance
 <!-- --8<-- [start:performance] -->
