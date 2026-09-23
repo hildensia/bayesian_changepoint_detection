@@ -6,6 +6,8 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+## [1.2.0] — 2026-09-23
+
 ### Added
 
 - `benchmarks/tcpd.py`: detection quality on the Turing Change Point

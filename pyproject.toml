@@ -8,7 +8,7 @@ build-backend = "setuptools.build_meta"
 # (0.2.dev1); both are Johannes Kulick's and neither is updated any more. The
 # import name is unchanged: `import bayesian_changepoint_detection`.
 name = "bayesian-changepoint"
-version = "1.1.0"
+version = "1.2.0"
 description = "Bayesian changepoint detection algorithms with PyTorch support"
 readme = "README.md"
 license = "MIT"

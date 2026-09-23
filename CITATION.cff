@@ -2,17 +2,17 @@ cff-version: 1.2.0
 message: "If you use this software, please cite it as below."
 type: software
 title: "Bayesian Changepoint Detection: A PyTorch Implementation"
-abstract: "Bayesian online (Adams & MacKay 2007) and offline (Fearnhead 2006) changepoint detection with PyTorch, with Normal-Gamma and Normal-Wishart conjugate likelihoods."
+abstract: "Bayesian online (Adams & MacKay 2007) and offline (Fearnhead 2006) changepoint detection with PyTorch: conjugate Normal-Gamma, Normal-Wishart, Normal (known variance) and Gamma-Poisson likelihoods, a streaming detector with bounded memory, the MAP segmentation, and per-segment statistics. Checked against scipy and exact enumeration, and against published results on the Turing Change Point Dataset."
 authors:
   - family-names: Kulick
     given-names: Johannes
   - family-names: Carisimo
     given-names: Esteban
-version: 1.1.0
-date-released: 2026-09-22
+version: 1.2.0
+date-released: 2026-09-23
 license: MIT
 repository-code: "https://github.com/hildensia/bayesian_changepoint_detection"
-url: "https://github.com/hildensia/bayesian_changepoint_detection"
+url: "https://estcarisimo.github.io/bayesian_changepoint_detection/"
 keywords:
   - bayesian
   - changepoint
