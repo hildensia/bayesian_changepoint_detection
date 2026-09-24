@@ -6,6 +6,10 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+## [1.2.1] — 2026-09-23
+
+No code change: the library behaves exactly as 1.2.0.
+
 ### Changed
 
 - Removed a maintainer's personal email address from the package metadata,
