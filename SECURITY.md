@@ -14,9 +14,9 @@ problems.
 
 GitHub's private vulnerability reporting is **not enabled** on this repository
 (checked 2026-09-18; enabling it needs the repository owner). Until it is,
-report privately by email to the maintainer (`@estcarisimo`, the code
-owner in [`.github/CODEOWNERS`](.github/CODEOWNERS)) at el.murdo@gmail.com,
-with "bayesian_changepoint_detection security" in the subject.
+open an issue titled "Security contact request" that says nothing about the
+problem itself, and the maintainer (`@estcarisimo`, the code owner in
+[`.github/CODEOWNERS`](.github/CODEOWNERS)) will arrange a private channel.
 
 Please include:
 

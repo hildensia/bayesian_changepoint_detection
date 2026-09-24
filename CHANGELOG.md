@@ -6,6 +6,12 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Changed
+
+- Removed a maintainer's personal email address from the package metadata,
+  `CODE_OF_CONDUCT.md` and `SECURITY.md`; private reports now start with an
+  issue asking for a private channel.
+
 ## [1.2.0] — 2026-09-23
 
 ### Added
