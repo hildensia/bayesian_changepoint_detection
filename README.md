@@ -676,7 +676,7 @@ this repository" button reads [CITATION.cff](https://github.com/hildensia/bayesi
   author  = {Kulick, Johannes and Carisimo, Esteban},
   url     = {https://github.com/hildensia/bayesian_changepoint_detection},
   year    = {2026},
-  version = {1.2.0}
+  version = {1.2.1}
 }
 ```
 
