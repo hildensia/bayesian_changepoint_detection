@@ -20,7 +20,9 @@ jobs:
           args: format --check
 
   test:
-    runs-on: ubuntu-latest
+    # Not ubuntu-latest: setup-python has no 3.9 build for Ubuntu 26.04. Go back
+    # to ubuntu-latest when 3.9 leaves the matrix.
+    runs-on: ubuntu-24.04
     timeout-minutes: 30
     strategy:
       fail-fast: false
