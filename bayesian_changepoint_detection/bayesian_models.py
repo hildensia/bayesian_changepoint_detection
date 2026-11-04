@@ -399,8 +399,9 @@ def online_changepoint_detection(
     T = data.shape[0]  # First dimension is time
 
     # Initialize run length probability matrix
-    R = torch.zeros(T + 1, T + 1, device=device, dtype=torch.float32)
-    R[0, 0] = 1.0  # Initially, run length is 0 with probability 1
+    R_t = torch.zeros(T + 1, T + 1, device=device, dtype=torch.float32)
+    R_t[0, 0] = 1.0  # Initially, run length is 0 with probability 1
+    posterior = R_t[0, :1]
 
     # Process each data point sequentially
     for t in range(T):
@@ -420,20 +421,23 @@ def online_changepoint_detection(
         # Growth probabilities: shift probabilities down and right,
         # scaled by hazard function and predictive probabilities
         # R[r+1, t+1] = R[r, t] * p(x_t | r) * (1 - H(r))
-        R[1 : t + 2, t + 1] = R[0 : t + 1, t] * pred_probs * (1 - H)
+        weighted = posterior * pred_probs
+        posterior = R_t[t + 1, : t + 2]
+        posterior[1:] = weighted * (1 - H)
 
         # Changepoint probability: mass accumulates at r = 0
         # R[0, t+1] = sum_r R[r, t] * p(x_t | r) * H(r)
-        R[0, t + 1] = torch.sum(R[0 : t + 1, t] * pred_probs * H)
+        posterior[0] = torch.sum(weighted * H)
 
         # Normalize run length probabilities for numerical stability
-        total_prob = torch.sum(R[:, t + 1])
+        total_prob = torch.sum(posterior).item()
         if total_prob > 0:
-            R[:, t + 1] = R[:, t + 1] / total_prob
+            posterior[:] = posterior / total_prob
 
         # Update likelihood model parameters with new observation
         likelihood_model.update_theta(x, t=t)
 
+    R = R_t.T.contiguous()
     map_run_lengths = torch.argmax(R, dim=0)
     return R, map_run_lengths
 
