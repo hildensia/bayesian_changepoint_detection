@@ -180,6 +180,13 @@ class StudentT(BaseLikelihood):
         self._shift_set = False
         self._mu0_c = float(mu)
         self._mu_c = torch.tensor([mu], device=self.device, dtype=torch.float32)
+        # Run length 0 of (_mu_c, kappa, alpha, beta) as a column, prepended
+        # by update_theta.
+        self._prior = torch.tensor(
+            [[self._mu0_c], [kappa], [alpha], [beta]],
+            device=self.device,
+            dtype=torch.float32,
+        )
 
     @property
     def mu(self) -> torch.Tensor:
@@ -190,13 +197,14 @@ class StudentT(BaseLikelihood):
         """The observation relative to the shift, which is set to the first
         observation seen (the state is still the prior at that point)."""
         if not self._shift_set:
-            self._shift = float(data.reshape(()))
+            self._shift = float(data.item())
             self._shift_set = True
             self._mu0_c = float(self.mu0) - self._shift
             self._mu_c = torch.full_like(self._mu_c, self._mu0_c)
+            self._prior[0, 0] = self._mu0_c
         # A Python float: the subtraction is float64 on every device, and a
         # scalar enters the tensor arithmetic below without building tensors.
-        return float(data.reshape(())) - self._shift
+        return float(data.item()) - self._shift
 
     def pdf(self, data: torch.Tensor) -> torch.Tensor:
         """
@@ -246,40 +254,24 @@ class StudentT(BaseLikelihood):
         data : torch.Tensor
             New data point to incorporate.
         """
-        data = self._center(ensure_tensor(data, device=self.device))
+        # A tensor is only read as a Python float, on whatever device it is.
+        if not isinstance(data, torch.Tensor):
+            data = ensure_tensor(data, device=self.device)
+        data = self._center(data)
+        kappa_1 = self.kappa + 1.0
 
-        # Compute updated parameters
-        mu_new = (self.kappa * self._mu_c + data) / (self.kappa + 1)
-        kappa_new = self.kappa + 1.0
-        alpha_new = self.alpha + 0.5
-        beta_new = self.beta + (self.kappa * (data - self._mu_c) ** 2) / (
-            2.0 * (self.kappa + 1.0)
-        )
-
-        # Concatenate with initial parameters to maintain history
-        self._mu_c = torch.cat(
+        # Updated (_mu_c, kappa, alpha, beta) of the previous run lengths, one
+        # row each, behind the prior column: one stack and one cat per step.
+        new = torch.stack(
             [
-                torch.tensor([self._mu0_c], device=self.device, dtype=torch.float32),
-                mu_new,
+                (self.kappa * self._mu_c + data) / kappa_1,
+                kappa_1,
+                self.alpha + 0.5,
+                self.beta + (self.kappa * (data - self._mu_c) ** 2) / (2.0 * kappa_1),
             ]
         )
-        self.kappa = torch.cat(
-            [
-                torch.tensor([self.kappa0], device=self.device, dtype=torch.float32),
-                kappa_new,
-            ]
-        )
-        self.alpha = torch.cat(
-            [
-                torch.tensor([self.alpha0], device=self.device, dtype=torch.float32),
-                alpha_new,
-            ]
-        )
-        self.beta = torch.cat(
-            [
-                torch.tensor([self.beta0], device=self.device, dtype=torch.float32),
-                beta_new,
-            ]
+        self._mu_c, self.kappa, self.alpha, self.beta = torch.cat(
+            [self._prior, new], dim=1
         )
 
 
