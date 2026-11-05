@@ -40,6 +40,21 @@ class TestConstPrior:
         assert torch.allclose(log_probs, expected.expand_as(log_probs))
 
     @pytest.mark.behavior
+    def test_tensor_output_follows_the_requested_device(self):
+        """``log_p`` is built on the output device (a CUDA ``t`` used to come
+        back on the CPU). The ``meta`` device stands in for an accelerator
+        on a CPU-only machine: it is a different device, and the bug was
+        that the scalar never left the CPU."""
+        t = torch.arange(1, 6, device="meta")
+        out = const_prior(t, p=0.1, device="meta")
+        assert out.device.type == "meta"
+        assert out.shape == t.shape
+        # The same call on the CPU is unaffected.
+        out_cpu = const_prior(torch.arange(1, 6), p=0.1, device="cpu")
+        assert out_cpu.device.type == "cpu"
+        assert torch.allclose(out_cpu, torch.full((5,), math.log(0.1)))
+
+    @pytest.mark.behavior
     def test_probability_validation(self):
         """Test probability parameter validation."""
         # Valid probabilities
@@ -157,6 +172,23 @@ class TestNegativeBinomialPrior:
     def test_output_device_and_dtype(self):
         out = negative_binomial_prior(torch.arange(1, 5), k=2, p=0.3, device="cpu")
         assert out.device.type == "cpu" and out.dtype == torch.float32
+
+    @pytest.mark.behavior
+    def test_survives_a_global_default_device(self):
+        """The float64 scratch tensors name the CPU explicitly, so a global
+        default device (``torch.set_default_device`` or the ``torch.device``
+        context) cannot split them across devices. ``meta`` stands in for
+        an accelerator: before the fix ``kk`` and ``pp`` landed there and
+        the subtraction raised."""
+        t = torch.arange(1, 8)
+        expected = negative_binomial_prior(t, k=2, p=0.3)
+        expected_scalar = negative_binomial_prior(4, k=2, p=0.3)
+        with torch.device("meta"):
+            out = negative_binomial_prior(t, k=2, p=0.3)
+            out_scalar = negative_binomial_prior(4, k=2, p=0.3)
+        assert out.device.type == "cpu"
+        assert torch.equal(out, expected)
+        assert out_scalar == expected_scalar
 
     @pytest.mark.behavior
     def test_parameter_validation_nb(self):

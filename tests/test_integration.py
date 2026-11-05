@@ -8,10 +8,12 @@ import pytest
 import torch
 
 from bayesian_changepoint_detection import (
+    OnlineChangepointDetector,
     changepoint_probabilities,
     get_map_changepoints,
     offline_changepoint_detection,
     online_changepoint_detection,
+    viterbi_changepoints,
 )
 from bayesian_changepoint_detection.generate_data import (
     generate_mean_shift_example,
@@ -101,10 +103,10 @@ class TestIntegration:
         assert R.shape[1] == data.shape[0] + 1
         assert len(map_run_lengths) == data.shape[0] + 1
 
+    @pytest.mark.gpu
+    @pytest.mark.skipif(not torch.cuda.is_available(), reason="CUDA not available")
     def test_device_consistency(self):
         """Test that device handling is consistent throughout."""
-        if not torch.cuda.is_available():
-            pytest.skip("CUDA not available")
 
         # Generate data on CPU
         partition, data = generate_mean_shift_example(
@@ -122,6 +124,51 @@ class TestIntegration:
         # Verify results are on GPU
         assert R.device.type == "cuda"
         assert map_run_lengths.device.type == "cuda"
+
+    @pytest.mark.gpu
+    @pytest.mark.skipif(not torch.cuda.is_available(), reason="CUDA not available")
+    def test_hazard_on_another_device_is_moved(self):
+        """A hazard built with its own ``device=`` is moved to the detector's
+        device in every online recursion, so mixed inputs cannot collide."""
+        torch.manual_seed(0)
+        data = torch.cat([torch.randn(30), torch.randn(30) + 3])
+        cpu_hazard = partial(constant_hazard, 60, device="cpu")
+        cuda_hazard = partial(constant_hazard, 60, device="cuda")
+
+        R, _ = online_changepoint_detection(data, cpu_hazard, StudentT(device="cuda"))
+        assert R.device.type == "cuda"
+        R, _ = online_changepoint_detection(data, cuda_hazard, StudentT(device="cpu"))
+        assert R.device.type == "cpu"
+
+        path = viterbi_changepoints(data, cpu_hazard, StudentT(device="cuda"))
+        assert path.device.type == "cuda"
+
+        detector = OnlineChangepointDetector(cpu_hazard, StudentT(device="cuda"))
+        for x in data:
+            detector.update(x)
+        assert detector.run_length_posterior.device.type == "cuda"
+
+    def test_hazard_dtype_follows_the_recursion(self):
+        """The hazard is cast to the recursion's float32 whatever it returns
+        (CPU-side check of the same ``.to(device, dtype)`` that moves it)."""
+        torch.manual_seed(0)
+        data = torch.cat([torch.randn(30), torch.randn(30) + 3])
+
+        def float64_hazard(r):
+            return torch.full_like(r, 1 / 60, dtype=torch.float64)
+
+        R, _ = online_changepoint_detection(
+            data, float64_hazard, StudentT(device="cpu")
+        )
+        assert R.dtype == torch.float32
+        detector = OnlineChangepointDetector(float64_hazard, StudentT(device="cpu"))
+        for x in data:
+            detector.update(x)
+        assert detector.run_length_posterior.dtype == torch.float32
+        R_ref, _ = online_changepoint_detection(
+            data, partial(constant_hazard, 60), StudentT(device="cpu")
+        )
+        assert torch.allclose(R, R_ref)
 
     def test_backward_compatibility(self):
         """Test that the refactored code maintains backward compatibility."""

@@ -189,6 +189,25 @@ class TestMultivariateT:
         assert torch.allclose(likelihood.mu[0], likelihood.mu0)
         assert torch.allclose(likelihood.scale[0], likelihood.scale0)
 
+    def test_scale_update_matches_bmm_outer_product(self):
+        """The rank-one scale update uses a broadcast outer product instead
+        of ``torch.bmm`` (which torch 2.14+ sends through a Triton kernel on
+        CUDA, needing a C compiler). The two must agree bit for bit."""
+        torch.manual_seed(0)
+        dims = 3
+        likelihood = MultivariateT(dims=dims, device="cpu")
+        series = torch.randn(6, dims)
+        for t, x in enumerate(series):
+            # Reference: the previous formula, on the same state.
+            centered = likelihood._center(x).unsqueeze(0) - likelihood._mu_c
+            weight = (likelihood.kappa / (likelihood.kappa + 1))[:, None, None]
+            expected = likelihood.scale_inv + weight * torch.bmm(
+                centered.unsqueeze(2), centered.unsqueeze(1)
+            )
+            likelihood.update_theta(x)
+            assert likelihood.scale_inv.shape == (t + 2, dims, dims)
+            assert torch.equal(likelihood.scale_inv[1:], expected)
+
     def test_input_shape_validation(self):
         """Test input shape validation."""
         dims = 3

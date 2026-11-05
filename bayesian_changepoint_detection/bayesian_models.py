@@ -415,7 +415,8 @@ def online_changepoint_detection(
 
         # Evaluate hazard function for current run lengths
         run_lengths = torch.arange(t + 1, device=device, dtype=torch.float32)
-        H = hazard_function(run_lengths)
+        # A hazard built with its own `device=` may live elsewhere; follow R.
+        H = hazard_function(run_lengths).to(device=device, dtype=torch.float32)
 
         # Growth probabilities: shift probabilities down and right,
         # scaled by hazard function and predictive probabilities
