@@ -150,12 +150,21 @@ class TestIntegration:
 
     def test_hazard_dtype_follows_the_recursion(self):
         """The hazard is cast to the recursion's float32 whatever it returns
-        (CPU-side check of the same ``.to(device, dtype)`` that moves it)."""
+        (CPU-side check of the same ``as_tensor(device, dtype)`` that moves
+        it), and a hazard returning a Python float still broadcasts."""
         torch.manual_seed(0)
         data = torch.cat([torch.randn(30), torch.randn(30) + 3])
 
         def float64_hazard(r):
             return torch.full_like(r, 1 / 60, dtype=torch.float64)
+
+        R_float, _ = online_changepoint_detection(
+            data, lambda r: 1 / 60, StudentT(device="cpu")
+        )
+        _, cps_float = viterbi_changepoints(
+            data, lambda r: 1 / 60, StudentT(device="cpu")
+        )
+        assert cps_float.numel() >= 1
 
         R, _ = online_changepoint_detection(
             data, float64_hazard, StudentT(device="cpu")
@@ -169,6 +178,7 @@ class TestIntegration:
             data, partial(constant_hazard, 60), StudentT(device="cpu")
         )
         assert torch.allclose(R, R_ref)
+        assert torch.allclose(R_float, R_ref)
 
     def test_backward_compatibility(self):
         """Test that the refactored code maintains backward compatibility."""

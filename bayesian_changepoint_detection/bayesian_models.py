@@ -416,7 +416,11 @@ def online_changepoint_detection(
         # Evaluate hazard function for current run lengths
         run_lengths = torch.arange(t + 1, device=device, dtype=torch.float32)
         # A hazard built with its own `device=` may live elsewhere; follow R.
-        H = hazard_function(run_lengths).to(device=device, dtype=torch.float32)
+        # as_tensor also accepts a Python float or a NumPy array (a no-op for
+        # a tensor already on `device` in float32).
+        H = torch.as_tensor(
+            hazard_function(run_lengths), dtype=torch.float32, device=device
+        )
 
         # Growth probabilities: shift probabilities down and right,
         # scaled by hazard function and predictive probabilities
@@ -672,7 +676,9 @@ def viterbi_changepoints(
             device=device, dtype=torch.float32
         )  # [t+1]
         run_lengths = torch.arange(t + 1, device=device, dtype=torch.float32)
-        H = hazard_function(run_lengths).to(device=device, dtype=torch.float32)
+        H = torch.as_tensor(
+            hazard_function(run_lengths), dtype=torch.float32, device=device
+        )
         scores = V[: t + 1, t] + log_pred  # best path into each r, times x_t
 
         # Growth: r -> r + 1, no changepoint.

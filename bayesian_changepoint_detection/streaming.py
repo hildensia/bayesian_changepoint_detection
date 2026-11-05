@@ -191,8 +191,9 @@ class OnlineChangepointDetector:
         pred_probs = torch.exp(self.likelihood_model.pdf(x))
         run_lengths = torch.arange(n, device=self.device, dtype=torch.float32)
         # A hazard built with its own `device=` may live elsewhere; follow r.
-        H = self.hazard_function(run_lengths).to(
-            device=self.device, dtype=torch.float32
+        # as_tensor also accepts a Python float or a NumPy array.
+        H = torch.as_tensor(
+            self.hazard_function(run_lengths), dtype=torch.float32, device=self.device
         )
 
         posterior = torch.zeros(n + 1, device=self.device, dtype=torch.float32)
