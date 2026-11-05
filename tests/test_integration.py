@@ -158,27 +158,30 @@ class TestIntegration:
         def float64_hazard(r):
             return torch.full_like(r, 1 / 60, dtype=torch.float64)
 
-        R_float, _ = online_changepoint_detection(
-            data, lambda r: 1 / 60, StudentT(device="cpu")
-        )
-        _, cps_float = viterbi_changepoints(
-            data, lambda r: 1 / 60, StudentT(device="cpu")
-        )
-        assert cps_float.numel() >= 1
+        tensor_hazard = partial(constant_hazard, 60)
 
-        R, _ = online_changepoint_detection(
-            data, float64_hazard, StudentT(device="cpu")
-        )
-        assert R.dtype == torch.float32
-        detector = OnlineChangepointDetector(float64_hazard, StudentT(device="cpu"))
-        for x in data:
-            detector.update(x)
-        assert detector.run_length_posterior.dtype == torch.float32
+        def float_hazard(r):
+            return 1 / 60
+
         R_ref, _ = online_changepoint_detection(
-            data, partial(constant_hazard, 60), StudentT(device="cpu")
+            data, tensor_hazard, StudentT(device="cpu")
         )
-        assert torch.allclose(R, R_ref)
-        assert torch.allclose(R_float, R_ref)
+        path_ref, _ = viterbi_changepoints(data, tensor_hazard, StudentT(device="cpu"))
+
+        for hazard in (float64_hazard, float_hazard):
+            R, _ = online_changepoint_detection(data, hazard, StudentT(device="cpu"))
+            assert R.dtype == torch.float32
+            assert torch.allclose(R, R_ref)
+
+            path, _ = viterbi_changepoints(data, hazard, StudentT(device="cpu"))
+            assert torch.equal(path, path_ref)
+
+            detector = OnlineChangepointDetector(hazard, StudentT(device="cpu"))
+            for x in data:
+                detector.update(x)
+            posterior = detector.run_length_posterior
+            assert posterior.dtype == torch.float32
+            assert torch.allclose(posterior, R_ref[:, -1], atol=1e-6)
 
     def test_backward_compatibility(self):
         """Test that the refactored code maintains backward compatibility."""
