@@ -140,7 +140,7 @@ class TestIntegration:
         R, _ = online_changepoint_detection(data, cuda_hazard, StudentT(device="cpu"))
         assert R.device.type == "cpu"
 
-        path = viterbi_changepoints(data, cpu_hazard, StudentT(device="cuda"))
+        path, _ = viterbi_changepoints(data, cpu_hazard, StudentT(device="cuda"))
         assert path.device.type == "cuda"
 
         detector = OnlineChangepointDetector(cpu_hazard, StudentT(device="cuda"))
