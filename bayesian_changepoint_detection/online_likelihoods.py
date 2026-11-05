@@ -148,6 +148,9 @@ class StudentT(BaseLikelihood):
     The Student's t-distribution arises naturally as the predictive distribution
     when using Normal-Gamma conjugate priors for Gaussian data with unknown
     mean and variance.
+
+    ``alpha0``, ``beta0`` and ``kappa0`` are read once, at the first
+    observation, when the prior column is built.
     """
 
     _run_length_state = ("alpha", "beta", "kappa", "_mu_c")
@@ -180,13 +183,6 @@ class StudentT(BaseLikelihood):
         self._shift_set = False
         self._mu0_c = float(mu)
         self._mu_c = torch.tensor([mu], device=self.device, dtype=torch.float32)
-        # Run length 0 of (_mu_c, kappa, alpha, beta) as a column, prepended
-        # by update_theta.
-        self._prior = torch.tensor(
-            [[self._mu0_c], [kappa], [alpha], [beta]],
-            device=self.device,
-            dtype=torch.float32,
-        )
 
     @property
     def mu(self) -> torch.Tensor:
@@ -195,13 +191,23 @@ class StudentT(BaseLikelihood):
 
     def _center(self, data: torch.Tensor) -> torch.Tensor:
         """The observation relative to the shift, which is set to the first
-        observation seen (the state is still the prior at that point)."""
+        observation seen (the state is still the prior at that point).
+
+        The prior column is built on that same first observation. Creating
+        it here reads ``alpha0``, ``beta0`` and ``kappa0`` at that moment,
+        and does not write into a tensor from ``__init__`` (a model built
+        under ``torch.inference_mode`` can then be used outside it).
+        """
         if not self._shift_set:
             self._shift = float(data.item())
             self._shift_set = True
             self._mu0_c = float(self.mu0) - self._shift
             self._mu_c = torch.full_like(self._mu_c, self._mu0_c)
-            self._prior[0, 0] = self._mu0_c
+            self._prior = torch.tensor(
+                [[self._mu0_c], [self.kappa0], [self.alpha0], [self.beta0]],
+                device=self.device,
+                dtype=torch.float32,
+            )
         # A Python float: the subtraction is float64 on every device, and a
         # scalar enters the tensor arithmetic below without building tensors.
         return float(data.item()) - self._shift
@@ -254,22 +260,16 @@ class StudentT(BaseLikelihood):
         data : torch.Tensor
             New data point to incorporate.
         """
-        # A tensor is only read as a Python float, on whatever device it is.
-        if not isinstance(data, torch.Tensor):
-            data = ensure_tensor(data, device=self.device)
-        data = self._center(data)
-        kappa_1 = self.kappa + 1.0
+        data = self._center(ensure_tensor(data, device=self.device))
 
-        # Updated (_mu_c, kappa, alpha, beta) of the previous run lengths, one
-        # row each, behind the prior column: one stack and one cat per step.
-        new = torch.stack(
-            [
-                (self.kappa * self._mu_c + data) / kappa_1,
-                kappa_1,
-                self.alpha + 0.5,
-                self.beta + (self.kappa * (data - self._mu_c) ** 2) / (2.0 * kappa_1),
-            ]
-        )
+        # Normal-Gamma update (Murphy 2007). Row order matches ``_prior``.
+        # One stack and one cat per step.
+        kappa_1 = self.kappa + 1.0
+        mu_new = (self.kappa * self._mu_c + data) / kappa_1
+        kappa_new = kappa_1
+        alpha_new = self.alpha + 0.5
+        beta_new = self.beta + (self.kappa * (data - self._mu_c) ** 2) / (2.0 * kappa_1)
+        new = torch.stack([mu_new, kappa_new, alpha_new, beta_new])
         self._mu_c, self.kappa, self.alpha, self.beta = torch.cat(
             [self._prior, new], dim=1
         )
