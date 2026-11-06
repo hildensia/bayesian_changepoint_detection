@@ -6,6 +6,8 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+## [1.2.2] — 2026-11-05
+
 ### Changed
 
 - `online_changepoint_detection` writes each posterior as a contiguous row
