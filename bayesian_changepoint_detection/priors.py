@@ -63,14 +63,15 @@ def const_prior(
     if not 0 < p <= 1:
         raise ValueError("Probability p must be between 0 and 1")
 
-    log_p = torch.log(torch.tensor(p, dtype=torch.float32))
-
     if isinstance(t, int):
-        return log_p.item()
-    else:
-        device = get_device(device)
-        t_tensor = ensure_tensor(t, device=device)
-        return log_p.expand_as(t_tensor)
+        return torch.log(torch.tensor(p, dtype=torch.float32)).item()
+
+    # Build log_p on the output device: a plain CPU scalar expanded over a
+    # CUDA (or MPS) ``t`` would come back on the CPU.
+    device = get_device(device)
+    t_tensor = ensure_tensor(t, device=device)
+    log_p = torch.log(torch.tensor(p, dtype=torch.float32, device=device))
+    return log_p.expand_as(t_tensor)
 
 
 def geometric_prior(
@@ -200,13 +201,15 @@ def negative_binomial_prior(
     scalar = isinstance(t, int)
     # Evaluate in float64 on the CPU (lgamma differences lose digits in
     # float32, and MPS has no float64), then move to the requested device.
+    # Every scratch tensor names the CPU explicitly so that a global default
+    # device (``torch.set_default_device``) cannot put some of them elsewhere.
     t_tensor = (
-        torch.tensor([t], dtype=torch.float64)
+        torch.tensor([t], dtype=torch.float64, device="cpu")
         if scalar
         else ensure_tensor(t, device="cpu").to(torch.float64)
     )
-    kk = torch.tensor(float(k), dtype=torch.float64)
-    pp = torch.tensor(float(p), dtype=torch.float64)
+    kk = torch.tensor(float(k), dtype=torch.float64, device="cpu")
+    pp = torch.tensor(float(p), dtype=torch.float64, device="cpu")
 
     log_probs = torch.full_like(t_tensor, float("-inf"))
     valid = t_tensor >= k

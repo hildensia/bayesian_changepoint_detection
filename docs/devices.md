@@ -36,8 +36,10 @@ argument is omitted, so choosing a device once, on the likelihood, is enough:
 - `online_changepoint_detection(data, hazard, likelihood, device=None)`,
   `viterbi_changepoints` and `OnlineChangepointDetector`: when `device` is
   given, the likelihood's state, the data and the run-length matrix `R` are
-  all moved to it. Either way everything ends up on one device, so mixed
-  CPU/GPU inputs cannot collide mid-recursion.
+  all moved to it, and the hazard's output is moved there at every step
+  (so `partial(constant_hazard, 100, device="cpu")` with a CUDA likelihood
+  works). Either way everything ends up on one device, so mixed CPU/GPU
+  inputs cannot collide mid-recursion.
 - `offline_changepoint_detection(data, prior, likelihood, device=None)`
   moves the data to that device and points the likelihood at it. The
   recursion runs in float64. **MPS has no float64**, so when MPS is

@@ -505,9 +505,16 @@ class MultivariateT(BaseLikelihood):
 
         # T_n = T + kappa/(kappa+1) (x-mu)(x-mu)^T  (Murphy 2007, eq. 255):
         # a rank-one update of the inverse Wishart scale, no inversion.
-        scale_inv_new = self.scale_inv + (self.kappa / (self.kappa + 1)).unsqueeze(
-            -1
-        ).unsqueeze(-1) * torch.bmm(centered.unsqueeze(2), centered.unsqueeze(1))
+        # The outer product is a broadcast multiply rather than torch.bmm:
+        # torch 2.14+ routes bmm on this [t, d, 1] x [t, 1, d] shape to a
+        # Triton kernel on CUDA, which compiles C at run time and fails
+        # without a compiler and Python headers. The broadcast gives the
+        # same values, bit for bit, and needs no compiler.
+        outer = centered.unsqueeze(2) * centered.unsqueeze(1)  # [t, dims, dims]
+        scale_inv_new = (
+            self.scale_inv
+            + (self.kappa / (self.kappa + 1)).unsqueeze(-1).unsqueeze(-1) * outer
+        )
 
         # Concatenate with initial parameters
         self._mu_c = torch.cat([self._mu0_c.unsqueeze(0), mu_new])

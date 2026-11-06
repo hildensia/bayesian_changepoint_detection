@@ -1,9 +1,14 @@
 #!/usr/bin/env python3
 """
-GPU acceleration example for Bayesian changepoint detection.
+GPU timing example for Bayesian changepoint detection.
 
-This example demonstrates the performance benefits of using GPU acceleration
-with the PyTorch-based implementation.
+This script times the online detector on the CPU and, when CUDA is available,
+on the GPU, and checks that the two give the same result. It does not show a
+GPU speedup: at these sizes (1 000 univariate points, 300 points in 3
+dimensions) the online recursion is a loop of small tensor operations and the
+GPU is slower than the CPU (0.4x on a TITAN Xp against an i7-8700). CUDA pays
+off for the online detector only on long series (about 10 000 points in one
+dimension, a few thousand in five); see ``docs/devices.md``.
 """
 
 import time
@@ -76,10 +81,14 @@ def benchmark_univariate(data_length=1000, num_runs=3):
                 alpha=0.1, beta=0.01, kappa=1, mu=0, device="cuda"
             )
 
-            # Warm up GPU
+            # Warm up GPU. An online likelihood is single-use (its state
+            # grows with every observation), so the warm-up gets its own.
             if run == 0:
                 R_warmup, _ = online_changepoint_detection(
-                    data_gpu.squeeze(), hazard_func, likelihood_gpu, device="cuda"
+                    data_gpu.squeeze(),
+                    hazard_func,
+                    StudentT(alpha=0.1, beta=0.01, kappa=1, mu=0, device="cuda"),
+                    device="cuda",
                 )
                 torch.cuda.synchronize()  # Ensure GPU is ready
 
@@ -96,7 +105,7 @@ def benchmark_univariate(data_length=1000, num_runs=3):
         print(f"Average GPU time: {avg_gpu_time:.3f}s")
 
         speedup = avg_cpu_time / avg_gpu_time
-        print(f"\nSpeedup: {speedup:.2f}x")
+        print(f"\nSpeedup: {speedup:.2f}x (below 1 means the CPU is faster)")
 
         # Verify results are consistent
         data_cpu = data.to("cpu")
@@ -171,10 +180,13 @@ def benchmark_multivariate(dims=5, data_length=500, num_runs=3):
             hazard_func = partial(constant_hazard, 200)
             likelihood_gpu = MultivariateT(dims=dims, device="cuda")
 
-            # Warm up GPU
+            # Warm up GPU, on a fresh single-use likelihood.
             if run == 0:
                 R_warmup, _ = online_changepoint_detection(
-                    data_gpu, hazard_func, likelihood_gpu, device="cuda"
+                    data_gpu,
+                    hazard_func,
+                    MultivariateT(dims=dims, device="cuda"),
+                    device="cuda",
                 )
                 torch.cuda.synchronize()
 
@@ -191,7 +203,7 @@ def benchmark_multivariate(dims=5, data_length=500, num_runs=3):
         print(f"Average GPU time: {avg_gpu_time:.3f}s")
 
         speedup = avg_cpu_time / avg_gpu_time
-        print(f"\nSpeedup: {speedup:.2f}x")
+        print(f"\nSpeedup: {speedup:.2f}x (below 1 means the CPU is faster)")
 
     else:
         print("\nGPU not available - skipping GPU benchmark")

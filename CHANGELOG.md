@@ -6,6 +6,40 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Fixed
+
+Found on the first run of the library on a CUDA GPU (TITAN Xp, torch
+2.14.1+cu126); none of these shows on the CPU-only CI.
+
+- `const_prior` returns its tensor on the requested device: `log_p` was
+  built on the CPU and expanded over the input, so a CUDA `t` came back on
+  the CPU. The detectors pass ints and were unaffected.
+- Online `MultivariateT.update_theta` forms the rank-one outer product with
+  a broadcast multiply instead of `torch.bmm`. torch 2.14+ routes `bmm` on
+  that shape to a Triton kernel on CUDA, which compiles C at run time and
+  fails with "Failed to find C compiler" on a machine without one. The
+  values are identical (maximum difference 0.0 in the run-length posterior
+  on 3 000-point series) and CPU timings are unchanged within noise.
+- The three online recursions (`online_changepoint_detection`,
+  `viterbi_changepoints`, `OnlineChangepointDetector`) move the hazard's
+  output to the detector's device, so a hazard built with its own `device=`
+  no longer raises "Expected all tensors to be on the same device" when it
+  differs from the likelihood's.
+- `negative_binomial_prior` pins its float64 scratch tensors to the CPU, so
+  it works under `torch.set_default_device("cuda")`.
+- `examples/gpu_acceleration.py` gives each warm-up run its own likelihood
+  (online likelihoods are single-use; reusing one crashed the first GPU
+  timing with a shape error) and its docstring says what it measures: at
+  the example's sizes the GPU is slower than the CPU.
+- `test_device_consistency` in `tests/test_integration.py` now carries the
+  `gpu` marker, so `pytest -m gpu` includes it.
+
+### Removed
+
+- The `gpu` extra in `pyproject.toml`: it asked for `torch[cuda]`, an extra
+  torch does not define, so it installed the default wheel. The README's
+  installation section says how to pick a CUDA wheel instead.
+
 ## [1.2.2] — 2026-11-05
 
 ### Changed

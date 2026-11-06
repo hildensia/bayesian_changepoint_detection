@@ -65,9 +65,6 @@ docs = [
     "mkdocs-material>=9.5",
     "mkdocstrings[python]>=0.26",
 ]
-gpu = [
-    "torch[cuda]>=2.0.0",
-]
 
 [project.urls]
 Homepage = "https://github.com/hildensia/bayesian_changepoint_detection"

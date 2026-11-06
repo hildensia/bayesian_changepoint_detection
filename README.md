@@ -77,7 +77,11 @@ lists every breaking change.
 - Python 3.9 or higher
 - PyTorch 2.0 or higher (installed automatically). For a CUDA build of
   PyTorch, install it first following <https://pytorch.org/get-started/locally/>;
-  the CPU build is enough for everything in this README.
+  the CPU build is enough for everything in this README. There is no
+  `[gpu]` extra: `pip` cannot choose the CUDA wheel for your driver and GPU
+  (the default wheel targets recent GPUs; older cards such as Pascal need
+  the `cu126` index), and `torch.cuda.is_available()` can be true on a
+  wheel that has no kernels for your card.
 
 <!-- --8<-- [end:install] -->
 
