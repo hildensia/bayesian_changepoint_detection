@@ -47,7 +47,6 @@
    "recall": 1.0,
    "f1": 1.0,
    "correct": true,
-   "module_file": "/Users/estcarisimo/postdoc/public-coding/bayesian_changepoint_detection/.claude/worktrees/review-pr-114-113-8c2a5a/bayesian_changepoint_detection/__init__.py",
    "torch_threads": 4
   },
   {
@@ -80,7 +79,6 @@
    "recall": 0.6666666666666666,
    "f1": 0.8,
    "correct": false,
-   "module_file": "/Users/estcarisimo/postdoc/public-coding/bayesian_changepoint_detection/.claude/worktrees/review-pr-114-113-8c2a5a/bayesian_changepoint_detection/__init__.py",
    "torch_threads": 4
   },
   {
@@ -114,7 +112,6 @@
    "recall": 1.0,
    "f1": 1.0,
    "correct": true,
-   "module_file": "/Users/estcarisimo/postdoc/public-coding/bayesian_changepoint_detection/.claude/worktrees/review-pr-114-113-8c2a5a/bayesian_changepoint_detection/__init__.py",
    "torch_threads": 4
   },
   {
@@ -148,7 +145,6 @@
    "recall": 1.0,
    "f1": 1.0,
    "correct": true,
-   "module_file": "/Users/estcarisimo/postdoc/public-coding/bayesian_changepoint_detection/.claude/worktrees/review-pr-114-113-8c2a5a/bayesian_changepoint_detection/__init__.py",
    "torch_threads": 4
   },
   {
@@ -181,7 +177,6 @@
    "recall": 0.6666666666666666,
    "f1": 0.8,
    "correct": false,
-   "module_file": "/Users/estcarisimo/postdoc/public-coding/bayesian_changepoint_detection/.claude/worktrees/review-pr-114-113-8c2a5a/bayesian_changepoint_detection/__init__.py",
    "torch_threads": 4
   },
   {
@@ -215,7 +210,6 @@
    "recall": 1.0,
    "f1": 1.0,
    "correct": true,
-   "module_file": "/Users/estcarisimo/postdoc/public-coding/bayesian_changepoint_detection/.claude/worktrees/review-pr-114-113-8c2a5a/bayesian_changepoint_detection/__init__.py",
    "torch_threads": 4
   },
   {
@@ -249,7 +243,6 @@
    "recall": 1.0,
    "f1": 1.0,
    "correct": true,
-   "module_file": "/Users/estcarisimo/postdoc/public-coding/bayesian_changepoint_detection/.claude/worktrees/review-pr-114-113-8c2a5a/bayesian_changepoint_detection/__init__.py",
    "torch_threads": 4
   },
   {
@@ -283,7 +276,6 @@
    "recall": 1.0,
    "f1": 1.0,
    "correct": true,
-   "module_file": "/Users/estcarisimo/postdoc/public-coding/bayesian_changepoint_detection/.claude/worktrees/review-pr-114-113-8c2a5a/bayesian_changepoint_detection/__init__.py",
    "torch_threads": 4
   },
   {
@@ -317,7 +309,6 @@
    "recall": 1.0,
    "f1": 1.0,
    "correct": true,
-   "module_file": "/Users/estcarisimo/postdoc/public-coding/bayesian_changepoint_detection/.claude/worktrees/review-pr-114-113-8c2a5a/bayesian_changepoint_detection/__init__.py",
    "torch_threads": 4
   },
   {
@@ -351,7 +342,6 @@
    "recall": 1.0,
    "f1": 1.0,
    "correct": true,
-   "module_file": "/Users/estcarisimo/postdoc/public-coding/bayesian_changepoint_detection/.claude/worktrees/review-pr-114-113-8c2a5a/bayesian_changepoint_detection/__init__.py",
    "torch_threads": 4
   },
   {
@@ -386,7 +376,6 @@
    "recall": 1.0,
    "f1": 0.8571428571428571,
    "correct": false,
-   "module_file": "/Users/estcarisimo/postdoc/public-coding/bayesian_changepoint_detection/.claude/worktrees/review-pr-114-113-8c2a5a/bayesian_changepoint_detection/__init__.py",
    "torch_threads": 4
   },
   {
@@ -420,7 +409,6 @@
    "recall": 1.0,
    "f1": 1.0,
    "correct": true,
-   "module_file": "/Users/estcarisimo/postdoc/public-coding/bayesian_changepoint_detection/.claude/worktrees/review-pr-114-113-8c2a5a/bayesian_changepoint_detection/__init__.py",
    "torch_threads": 4
   },
   {
@@ -454,7 +442,6 @@
    "recall": 1.0,
    "f1": 1.0,
    "correct": true,
-   "module_file": "/Users/estcarisimo/postdoc/public-coding/bayesian_changepoint_detection/.claude/worktrees/review-pr-114-113-8c2a5a/bayesian_changepoint_detection/__init__.py",
    "torch_threads": 4
   },
   {
@@ -488,7 +475,6 @@
    "recall": 1.0,
    "f1": 1.0,
    "correct": true,
-   "module_file": "/Users/estcarisimo/postdoc/public-coding/bayesian_changepoint_detection/.claude/worktrees/review-pr-114-113-8c2a5a/bayesian_changepoint_detection/__init__.py",
    "torch_threads": 4
   },
   {
@@ -522,7 +508,6 @@
    "recall": 1.0,
    "f1": 1.0,
    "correct": true,
-   "module_file": "/Users/estcarisimo/postdoc/public-coding/bayesian_changepoint_detection/.claude/worktrees/review-pr-114-113-8c2a5a/bayesian_changepoint_detection/__init__.py",
    "torch_threads": 4
   },
   {
@@ -635,7 +620,6 @@
    "recall": 1.0,
    "f1": 0.9176470588235294,
    "correct": false,
-   "module_file": "/Users/estcarisimo/postdoc/public-coding/bayesian_changepoint_detection/.claude/worktrees/review-pr-114-113-8c2a5a/bayesian_changepoint_detection/__init__.py",
    "torch_threads": 4
   },
   {
@@ -1084,7 +1068,6 @@
    "recall": 0.9949748743718593,
    "f1": 0.9406175771971497,
    "correct": false,
-   "module_file": "/Users/estcarisimo/postdoc/public-coding/bayesian_changepoint_detection/.claude/worktrees/review-pr-114-113-8c2a5a/bayesian_changepoint_detection/__init__.py",
    "torch_threads": 4
   }
  ]
