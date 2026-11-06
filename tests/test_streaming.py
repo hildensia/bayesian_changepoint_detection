@@ -85,8 +85,8 @@ def test_bounded_run_length_matches_the_truncated_reference(max_run_length):
 @pytest.mark.behavior
 @pytest.mark.parametrize("dims", [None, 3], ids=["univariate", "multivariate"])
 def test_agrees_with_the_batch_detector(dims):
-    # Same recursion; the batch version normalizes over the zero-padded
-    # column of R, so the two differ by float32 rounding only.
+    # Same recursion. Both normalize only the active run lengths, so the
+    # posteriors match bit for bit.
     data = mean_shift(2, dims=dims)
     make = (
         (lambda: StudentT(device="cpu"))
@@ -99,13 +99,27 @@ def test_agrees_with_the_batch_detector(dims):
     detector = OnlineChangepointDetector(HAZARD, make())
     for t, x in enumerate(data):
         posterior = detector.update(x)
-        assert torch.allclose(posterior, R[: t + 2, t + 1], rtol=1e-5, atol=1e-6)
+        assert torch.equal(posterior, R[: t + 2, t + 1])
         assert detector.map_run_length == int(map_run_lengths[t + 1])
     assert detector.t == len(data)
     lagged = changepoint_probabilities(R, lag=10)
     assert detector.changepoint_probability(10) == pytest.approx(
         float(lagged[len(data) - 10]), abs=1e-6
     )
+
+
+@pytest.mark.behavior
+def test_batch_posterior_is_contiguous_and_zero_below_the_diagonal():
+    data = mean_shift(6)
+    R, _ = online_changepoint_detection(
+        data, HAZARD, StudentT(device="cpu"), device="cpu"
+    )
+    length = data.shape[0]
+    assert R.is_contiguous()
+    assert R.dtype == torch.float32
+    assert R.shape == (length + 1, length + 1)
+    # Run length r is impossible after t < r observations.
+    assert torch.equal(torch.tril(R, diagonal=-1), torch.zeros_like(R))
 
 
 @pytest.mark.behavior

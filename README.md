@@ -159,7 +159,7 @@ print(starts)  # [50, 100]
 ```
 
 Without `max_run_length` each posterior equals the corresponding column of
-`R` from `online_changepoint_detection` (up to float32 rounding).
+`R` from `online_changepoint_detection`, bit for bit on the CPU.
 
 ### Direction and size of each change
 
