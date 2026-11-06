@@ -431,7 +431,7 @@ def online_changepoint_detection(
         posterior[0] = torch.sum(weighted * H)
 
         # Normalize run length probabilities for numerical stability.
-        # Leave the sum as a tensor. `.item()` would detach the normalizer.
+        # Keep `total_prob` a tensor.
         total_prob = torch.sum(posterior)
         if total_prob > 0:
             posterior[:] = posterior / total_prob
