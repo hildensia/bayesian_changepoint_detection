@@ -148,6 +148,9 @@ class StudentT(BaseLikelihood):
     The Student's t-distribution arises naturally as the predictive distribution
     when using Normal-Gamma conjugate priors for Gaussian data with unknown
     mean and variance.
+
+    ``alpha0``, ``beta0`` and ``kappa0`` are read once, at the first
+    observation, when the prior column is built.
     """
 
     _run_length_state = ("alpha", "beta", "kappa", "_mu_c")
@@ -188,15 +191,26 @@ class StudentT(BaseLikelihood):
 
     def _center(self, data: torch.Tensor) -> torch.Tensor:
         """The observation relative to the shift, which is set to the first
-        observation seen (the state is still the prior at that point)."""
+        observation seen (the state is still the prior at that point).
+
+        The prior column is built on that same first observation. Creating
+        it here reads ``alpha0``, ``beta0`` and ``kappa0`` at that moment,
+        and does not write into a tensor from ``__init__`` (a model built
+        under ``torch.inference_mode`` can then be used outside it).
+        """
         if not self._shift_set:
-            self._shift = float(data.reshape(()))
+            self._shift = float(data.item())
             self._shift_set = True
             self._mu0_c = float(self.mu0) - self._shift
             self._mu_c = torch.full_like(self._mu_c, self._mu0_c)
+            self._prior = torch.tensor(
+                [[self._mu0_c], [self.kappa0], [self.alpha0], [self.beta0]],
+                device=self.device,
+                dtype=torch.float32,
+            )
         # A Python float: the subtraction is float64 on every device, and a
         # scalar enters the tensor arithmetic below without building tensors.
-        return float(data.reshape(())) - self._shift
+        return float(data.item()) - self._shift
 
     def pdf(self, data: torch.Tensor) -> torch.Tensor:
         """
@@ -248,38 +262,16 @@ class StudentT(BaseLikelihood):
         """
         data = self._center(ensure_tensor(data, device=self.device))
 
-        # Compute updated parameters
-        mu_new = (self.kappa * self._mu_c + data) / (self.kappa + 1)
-        kappa_new = self.kappa + 1.0
+        # Normal-Gamma update (Murphy 2007). Row order matches ``_prior``.
+        # One stack and one cat per step.
+        kappa_1 = self.kappa + 1.0
+        mu_new = (self.kappa * self._mu_c + data) / kappa_1
+        kappa_new = kappa_1
         alpha_new = self.alpha + 0.5
-        beta_new = self.beta + (self.kappa * (data - self._mu_c) ** 2) / (
-            2.0 * (self.kappa + 1.0)
-        )
-
-        # Concatenate with initial parameters to maintain history
-        self._mu_c = torch.cat(
-            [
-                torch.tensor([self._mu0_c], device=self.device, dtype=torch.float32),
-                mu_new,
-            ]
-        )
-        self.kappa = torch.cat(
-            [
-                torch.tensor([self.kappa0], device=self.device, dtype=torch.float32),
-                kappa_new,
-            ]
-        )
-        self.alpha = torch.cat(
-            [
-                torch.tensor([self.alpha0], device=self.device, dtype=torch.float32),
-                alpha_new,
-            ]
-        )
-        self.beta = torch.cat(
-            [
-                torch.tensor([self.beta0], device=self.device, dtype=torch.float32),
-                beta_new,
-            ]
+        beta_new = self.beta + (self.kappa * (data - self._mu_c) ** 2) / (2.0 * kappa_1)
+        new = torch.stack([mu_new, kappa_new, alpha_new, beta_new])
+        self._mu_c, self.kappa, self.alpha, self.beta = torch.cat(
+            [self._prior, new], dim=1
         )
 
 

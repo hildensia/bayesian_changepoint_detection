@@ -163,7 +163,7 @@ print(starts)  # [50, 100]
 ```
 
 Without `max_run_length` each posterior equals the corresponding column of
-`R` from `online_changepoint_detection` (up to float32 rounding).
+`R` from `online_changepoint_detection`, bit for bit on the CPU.
 
 ### Direction and size of each change
 
@@ -409,17 +409,23 @@ the true changepoints (F1, margin 5). Apple M1, CPU, 4 threads, PyTorch 2.14,
 Python 3.12; median of up to five runs. Raw results, with more sizes:
 [`benchmarks/results/2026-09-23-apple-m1-cpu.json`](https://github.com/hildensia/bayesian_changepoint_detection/blob/master/benchmarks/results/2026-09-23-apple-m1-cpu.json).
 
-| Workload | 1.2.0 | 1.1.0 | 0.4 (NumPy) | 1.0.0 (PyTorch) |
-|---|---|---|---|---|
-| Offline `StudentT`, 1 000 points | 0.53 s | 3.1 s | 24 s | 108 s, misses changes (F1 0.50) |
-| Offline `StudentT`, 2 000 points | 2.0 s | 24 s | 101 s | not run (predicted 426 s) |
-| Offline `MultivariateT`, 5-D, 1 000 points | 0.94 s | 3.4 s | not available | 30 s |
-| Online `StudentT`, 1 000 points | 0.16 s | 0.13 s | 0.12 s | 39 s |
-| Online `StudentT`, 5 000 points | 1.9 s | 1.8 s | 2.0 s | not run (predicted 825 s) |
-| Online `MultivariateT`, 5-D, 1 000 points | 0.40 s | 0.37 s | crashes (`NameError`) | 51 s, wrong (F1 0.04) |
-| `OnlineChangepointDetector`, 50 000 points, `max_run_length=1000` | 7.9 s (160 µs per point) | not available | not available | not available |
+| Workload | 1.2.2 | 1.2.0 | 1.1.0 | 0.4 (NumPy) | 1.0.0 (PyTorch) |
+|---|---|---|---|---|---|
+| Offline `StudentT`, 1 000 points | 0.61 s | 0.53 s | 3.1 s | 24 s | 108 s, misses changes (F1 0.50) |
+| Offline `StudentT`, 2 000 points | 2.3 s | 2.0 s | 24 s | 101 s | not run (predicted 426 s) |
+| Offline `MultivariateT`, 5-D, 1 000 points | 0.97 s | 0.94 s | 3.4 s | not available | 30 s |
+| Online `StudentT`, 1 000 points | 0.14 s | 0.16 s | 0.13 s | 0.12 s | 39 s |
+| Online `StudentT`, 5 000 points | 1.5 s | 1.9 s | 1.8 s | 2.0 s | not run (predicted 825 s) |
+| Online `MultivariateT`, 5-D, 1 000 points | 0.34 s | 0.40 s | 0.37 s | crashes (`NameError`) | 51 s, wrong (F1 0.04) |
+| `OnlineChangepointDetector`, 50 000 points, `max_run_length=1000` | 7.2 s (144 µs per point) | 7.9 s (160 µs per point) | not available | not available | not available |
 
-1.2.0 finds every change in each of these series (F1 1.00) except the
+The 1.2.2 column is a later run of the same benchmark on the same machine
+([`benchmarks/results/2026-11-05-apple-m1-cpu.json`](https://github.com/hildensia/bayesian_changepoint_detection/blob/master/benchmarks/results/2026-11-05-apple-m1-cpu.json));
+the other columns come from one earlier file, so compare the 1.2.2 column with
+them only as a guide. The offline code did not change in 1.2.2, so its
+differences in the offline rows are machine load, not a slowdown.
+
+1.2.0 and 1.2.2 find every change in each of these series (F1 1.00) except the
 streaming one (F1 0.94, 199 changes). In short: the offline detector is
 31–51x faster than the NumPy original, 206–360x faster than 1.0.0 (which
 also misses changes) and faster than 1.1.0 by a factor that grows with
@@ -680,7 +686,7 @@ this repository" button reads [CITATION.cff](https://github.com/hildensia/bayesi
   author  = {Kulick, Johannes and Carisimo, Esteban},
   url     = {https://github.com/hildensia/bayesian_changepoint_detection},
   year    = {2026},
-  version = {1.2.1}
+  version = {1.2.2}
 }
 ```
 
