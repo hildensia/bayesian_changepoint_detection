@@ -12,6 +12,11 @@ All notable changes to this project are documented here. The format follows
   and transposes that matrix in place. This is about 21% less time at
   5,000 points. `R` changes at float32 rounding level (largest difference
   about 1.3e-6 absolute and 1.1e-5 relative) and no detection moved.
+- Online `StudentT.update_theta` keeps one prior column and stacks the
+  Normal-Gamma update, instead of allocating a new tensor for each of
+  `mu`, `kappa`, `alpha` and `beta` on every observation. The `*0`
+  hyperparameters are read once, at the first observation. The run-length
+  posterior is unchanged.
 
 ## [1.2.1] — 2026-09-23
 
