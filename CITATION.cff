@@ -8,8 +8,8 @@ authors:
     given-names: Johannes
   - family-names: Carisimo
     given-names: Esteban
-version: 1.2.1
-date-released: 2026-09-23
+version: 1.2.2
+date-released: 2026-11-05
 license: MIT
 repository-code: "https://github.com/hildensia/bayesian_changepoint_detection"
 url: "https://estcarisimo.github.io/bayesian_changepoint_detection/"
